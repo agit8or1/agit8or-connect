@@ -1,0 +1,4 @@
+# PostgreSQL store tests (CI postgres job).
+#   uv pip compile --universal --python-version 3.10 --generate-hashes requirements/postgres.in -o requirements/postgres.txt
+-r ci.in
+psycopg[binary]>=3.1

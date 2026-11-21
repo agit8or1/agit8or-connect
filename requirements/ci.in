@@ -1,0 +1,6 @@
+# Test dependencies for CI. Regenerate the lock with:
+#   uv pip compile --universal --python-version 3.10 --generate-hashes requirements/ci.in -o requirements/ci.txt
+cryptography>=42
+PyJWT>=2.10
+PyYAML>=6
+hypothesis>=6.100

@@ -1,0 +1,52 @@
+name: release
+
+# Runs only when the owner pushes a version tag (v*). Builds the Python sdist/wheel and the TypeScript
+# package, writes an SBOM and SHA-256 checksums, and attaches them to a DRAFT release for review.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22.18.0"
+      - name: Install (hash-locked)
+        run: |
+          python -m pip install --require-hashes -r requirements/tools.txt
+          python -m pip install --require-hashes -r requirements/ci.txt
+      - name: Tests before packaging
+        run: |
+          (cd test-vectors && sha256sum -c ../conformance/VECTORS.sha256)
+          (cd python && python -m unittest discover)
+          (cd typescript && npm test)
+      - name: Build
+        run: |
+          mkdir -p dist
+          python -m build python --outdir dist
+          (cd typescript && npm pack --pack-destination ../dist)
+          cyclonedx-py requirements requirements/ci.txt --of JSON -o dist/sbom-python.cdx.json
+          (cd dist && sha256sum * > SHA256SUMS)
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-${{ github.ref_name }}
+          path: dist/
+      - name: Draft release with the artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" dist/* --draft --verify-tag --title "${{ github.ref_name }}" \
+            --notes "Draft - review CHANGELOG.md and the artifacts before publishing."
