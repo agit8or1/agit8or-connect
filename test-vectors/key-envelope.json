@@ -1,0 +1,32 @@
+{
+  "description": "Private-key envelope a8ck1.<key id>.<nonce>.<AES-256-GCM ct+tag>; associated data = \"agit8or-connect key-v1\\n\" + key id + \"\\n\" + row aad.",
+  "envelope": "a8ck1.test-mk-1.eiZKfuLDJNoBCExG.O38H14Pu6yeWTKS4GX9MrI2UqNTjswCTi9m2lgmSeNLEHNqkzDOnms9VMKRze6kw",
+  "master_keys": {
+    "test-mk-1": "bu9tHHhPqM-91yyAJdKN_nWYrig1jjoeG0oZCBP6LF4",
+    "test-mk-2": "7lVoyVGmIXVzz5bdKrM1OtksEuUSxJC5ARsM_94NXiU"
+  },
+  "negative": [
+    {
+      "case": "other row",
+      "error": "key_corrupt",
+      "row_aad": "connect_key.private_key#00000000-0000-4000-8000-000000000000"
+    },
+    {
+      "case": "relabelled key id",
+      "envelope": "a8ck1.test-mk-2.eiZKfuLDJNoBCExG.O38H14Pu6yeWTKS4GX9MrI2UqNTjswCTi9m2lgmSeNLEHNqkzDOnms9VMKRze6kw",
+      "error": "key_corrupt",
+      "row_aad": "connect_key.private_key#7d1f5c9a-0b7e-4c2e-9c55-0d6f3a1b2c3d"
+    },
+    {
+      "case": "unknown key id",
+      "envelope": "a8ck1.test-mk-9.eiZKfuLDJNoBCExG.O38H14Pu6yeWTKS4GX9MrI2UqNTjswCTi9m2lgmSeNLEHNqkzDOnms9VMKRze6kw",
+      "error": "key_unavailable",
+      "row_aad": "connect_key.private_key#7d1f5c9a-0b7e-4c2e-9c55-0d6f3a1b2c3d"
+    }
+  ],
+  "nonce_b64url": "eiZKfuLDJNoBCExG",
+  "notice": "TEST-ONLY KEYS. Published seeds; never use outside conformance tests.",
+  "plaintext_seed_hex": "587564735469c3291575ce95a75679f5859878ed4746ed33f90c8b3f6b517fef",
+  "public_key_thumbprint": "PYaBr5K5adpRVgVznHunWEovRNbXMBZVAK-AKdqE1ys",
+  "row_aad": "connect_key.private_key#7d1f5c9a-0b7e-4c2e-9c55-0d6f3a1b2c3d"
+}

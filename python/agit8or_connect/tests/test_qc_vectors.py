@@ -282,7 +282,8 @@ class V1Untouched(unittest.TestCase):
             with open(os.path.join(DIR, name), encoding='utf-8') as f:
                 self.assertEqual(f.read(), json.dumps(built[name], indent=2, ensure_ascii=False, sort_keys=True)
                                  + '\n')
-        self.assertTrue(all(n.startswith('qc-') for n in set(built) - set(V1_FILES)))
+        hardening = {'addresses.json', 'key-envelope.json'}      # added files, no 1.0 behaviour changed
+        self.assertTrue(all(n.startswith('qc-') or n in hardening for n in set(built) - set(V1_FILES)))
         import hashlib
         for name, digest in V1_DIGESTS.items():
             with open(os.path.join(DIR, name), 'rb') as f:

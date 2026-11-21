@@ -1,0 +1,554 @@
+{
+  "addresses": [
+    {
+      "category": "public",
+      "input": "93.184.216.34",
+      "normalized": "93.184.216.34",
+      "outbound_refused": false,
+      "via": ""
+    },
+    {
+      "category": "public",
+      "input": "8.8.8.8",
+      "normalized": "8.8.8.8",
+      "outbound_refused": false,
+      "via": ""
+    },
+    {
+      "category": "public",
+      "input": "2606:4700::1111",
+      "normalized": "2606:4700::1111",
+      "outbound_refused": false,
+      "via": ""
+    },
+    {
+      "category": "documentation",
+      "input": "203.0.113.10",
+      "normalized": "203.0.113.10",
+      "outbound_refused": false,
+      "via": ""
+    },
+    {
+      "category": "documentation",
+      "input": "198.51.100.7",
+      "normalized": "198.51.100.7",
+      "outbound_refused": false,
+      "via": ""
+    },
+    {
+      "category": "documentation",
+      "input": "192.0.2.1",
+      "normalized": "192.0.2.1",
+      "outbound_refused": false,
+      "via": ""
+    },
+    {
+      "category": "documentation",
+      "input": "2001:db8::10",
+      "normalized": "2001:db8::10",
+      "outbound_refused": false,
+      "via": ""
+    },
+    {
+      "category": "documentation",
+      "input": "3fff::1",
+      "normalized": "3fff::1",
+      "outbound_refused": false,
+      "via": ""
+    },
+    {
+      "category": "private",
+      "input": "10.0.0.5",
+      "normalized": "10.0.0.5",
+      "outbound_refused": false,
+      "via": ""
+    },
+    {
+      "category": "private",
+      "input": "172.16.1.1",
+      "normalized": "172.16.1.1",
+      "outbound_refused": false,
+      "via": ""
+    },
+    {
+      "category": "private",
+      "input": "172.31.255.255",
+      "normalized": "172.31.255.255",
+      "outbound_refused": false,
+      "via": ""
+    },
+    {
+      "category": "public",
+      "input": "172.32.0.1",
+      "normalized": "172.32.0.1",
+      "outbound_refused": false,
+      "via": ""
+    },
+    {
+      "category": "private",
+      "input": "192.168.1.1",
+      "normalized": "192.168.1.1",
+      "outbound_refused": false,
+      "via": ""
+    },
+    {
+      "category": "private",
+      "input": "100.64.0.1",
+      "normalized": "100.64.0.1",
+      "outbound_refused": false,
+      "via": ""
+    },
+    {
+      "category": "private",
+      "input": "100.127.255.255",
+      "normalized": "100.127.255.255",
+      "outbound_refused": false,
+      "via": ""
+    },
+    {
+      "category": "public",
+      "input": "100.128.0.1",
+      "normalized": "100.128.0.1",
+      "outbound_refused": false,
+      "via": ""
+    },
+    {
+      "category": "private",
+      "input": "fd12:3456::1",
+      "normalized": "fd12:3456::1",
+      "outbound_refused": false,
+      "via": ""
+    },
+    {
+      "category": "private",
+      "input": "fc00::1",
+      "normalized": "fc00::1",
+      "outbound_refused": false,
+      "via": ""
+    },
+    {
+      "category": "private",
+      "input": "64:ff9b:1::a00:1",
+      "normalized": "64:ff9b:1::a00:1",
+      "outbound_refused": false,
+      "via": ""
+    },
+    {
+      "category": "loopback",
+      "input": "127.0.0.1",
+      "normalized": "127.0.0.1",
+      "outbound_refused": true,
+      "via": ""
+    },
+    {
+      "category": "loopback",
+      "input": "127.255.255.254",
+      "normalized": "127.255.255.254",
+      "outbound_refused": true,
+      "via": ""
+    },
+    {
+      "category": "loopback",
+      "input": "::1",
+      "normalized": "::1",
+      "outbound_refused": true,
+      "via": ""
+    },
+    {
+      "category": "unspecified",
+      "input": "0.0.0.0",
+      "normalized": "0.0.0.0",
+      "outbound_refused": true,
+      "via": ""
+    },
+    {
+      "category": "unspecified",
+      "input": "0.1.2.3",
+      "normalized": "0.1.2.3",
+      "outbound_refused": true,
+      "via": ""
+    },
+    {
+      "category": "unspecified",
+      "input": "::",
+      "normalized": "::",
+      "outbound_refused": true,
+      "via": ""
+    },
+    {
+      "category": "link_local",
+      "input": "169.254.1.1",
+      "normalized": "169.254.1.1",
+      "outbound_refused": true,
+      "via": ""
+    },
+    {
+      "category": "link_local",
+      "input": "fe80::1",
+      "normalized": "fe80::1",
+      "outbound_refused": true,
+      "via": ""
+    },
+    {
+      "category": "metadata",
+      "input": "169.254.169.254",
+      "normalized": "169.254.169.254",
+      "outbound_refused": true,
+      "via": ""
+    },
+    {
+      "category": "metadata",
+      "input": "169.254.170.2",
+      "normalized": "169.254.170.2",
+      "outbound_refused": true,
+      "via": ""
+    },
+    {
+      "category": "metadata",
+      "input": "169.254.170.23",
+      "normalized": "169.254.170.23",
+      "outbound_refused": true,
+      "via": ""
+    },
+    {
+      "category": "metadata",
+      "input": "100.100.100.200",
+      "normalized": "100.100.100.200",
+      "outbound_refused": true,
+      "via": ""
+    },
+    {
+      "category": "metadata",
+      "input": "192.0.0.192",
+      "normalized": "192.0.0.192",
+      "outbound_refused": true,
+      "via": ""
+    },
+    {
+      "category": "metadata",
+      "input": "fd00:ec2::254",
+      "normalized": "fd00:ec2::254",
+      "outbound_refused": true,
+      "via": ""
+    },
+    {
+      "category": "multicast",
+      "input": "224.0.0.1",
+      "normalized": "224.0.0.1",
+      "outbound_refused": true,
+      "via": ""
+    },
+    {
+      "category": "multicast",
+      "input": "239.255.255.250",
+      "normalized": "239.255.255.250",
+      "outbound_refused": true,
+      "via": ""
+    },
+    {
+      "category": "multicast",
+      "input": "ff02::1",
+      "normalized": "ff02::1",
+      "outbound_refused": true,
+      "via": ""
+    },
+    {
+      "category": "broadcast",
+      "input": "255.255.255.255",
+      "normalized": "255.255.255.255",
+      "outbound_refused": true,
+      "via": ""
+    },
+    {
+      "category": "reserved",
+      "input": "240.0.0.1",
+      "normalized": "240.0.0.1",
+      "outbound_refused": true,
+      "via": ""
+    },
+    {
+      "category": "reserved",
+      "input": "192.0.0.170",
+      "normalized": "192.0.0.170",
+      "outbound_refused": true,
+      "via": ""
+    },
+    {
+      "category": "reserved",
+      "input": "198.18.0.1",
+      "normalized": "198.18.0.1",
+      "outbound_refused": true,
+      "via": ""
+    },
+    {
+      "category": "reserved",
+      "input": "192.88.99.1",
+      "normalized": "192.88.99.1",
+      "outbound_refused": true,
+      "via": ""
+    },
+    {
+      "category": "loopback",
+      "input": "::ffff:127.0.0.1",
+      "normalized": "127.0.0.1",
+      "outbound_refused": true,
+      "via": "mapped"
+    },
+    {
+      "category": "private",
+      "input": "::ffff:10.0.0.1",
+      "normalized": "10.0.0.1",
+      "outbound_refused": false,
+      "via": "mapped"
+    },
+    {
+      "category": "public",
+      "input": "::ffff:93.184.216.34",
+      "normalized": "93.184.216.34",
+      "outbound_refused": false,
+      "via": "mapped"
+    },
+    {
+      "category": "loopback",
+      "input": "64:ff9b::7f00:1",
+      "normalized": "64:ff9b::7f00:1",
+      "outbound_refused": true,
+      "via": "nat64"
+    },
+    {
+      "category": "metadata",
+      "input": "64:ff9b::a9fe:a9fe",
+      "normalized": "64:ff9b::a9fe:a9fe",
+      "outbound_refused": true,
+      "via": "nat64"
+    },
+    {
+      "category": "public",
+      "input": "64:ff9b::5db8:d822",
+      "normalized": "64:ff9b::5db8:d822",
+      "outbound_refused": false,
+      "via": "nat64"
+    },
+    {
+      "category": "reserved",
+      "input": "::127.0.0.1",
+      "normalized": "::7f00:1",
+      "outbound_refused": true,
+      "via": ""
+    },
+    {
+      "category": "reserved",
+      "input": "2001::1",
+      "normalized": "2001::1",
+      "outbound_refused": true,
+      "via": ""
+    },
+    {
+      "category": "reserved",
+      "input": "2001:20::1",
+      "normalized": "2001:20::1",
+      "outbound_refused": true,
+      "via": ""
+    },
+    {
+      "category": "reserved",
+      "input": "2002:7f00:1::1",
+      "normalized": "2002:7f00:1::1",
+      "outbound_refused": true,
+      "via": ""
+    },
+    {
+      "category": "reserved",
+      "input": "2002:5db8:d822::1",
+      "normalized": "2002:5db8:d822::1",
+      "outbound_refused": true,
+      "via": ""
+    },
+    {
+      "category": "reserved",
+      "input": "fec0::1",
+      "normalized": "fec0::1",
+      "outbound_refused": true,
+      "via": ""
+    },
+    {
+      "category": "reserved",
+      "input": "5f00::1",
+      "normalized": "5f00::1",
+      "outbound_refused": true,
+      "via": ""
+    },
+    {
+      "category": "reserved",
+      "input": "100::1",
+      "normalized": "100::1",
+      "outbound_refused": true,
+      "via": ""
+    },
+    {
+      "category": "reserved",
+      "input": "4000::1",
+      "normalized": "4000::1",
+      "outbound_refused": true,
+      "via": ""
+    },
+    {
+      "category": "reserved",
+      "input": "fe80::1%eth0",
+      "normalized": null,
+      "outbound_refused": true,
+      "via": ""
+    },
+    {
+      "category": "reserved",
+      "input": "1.2.3",
+      "normalized": null,
+      "outbound_refused": true,
+      "via": ""
+    },
+    {
+      "category": "reserved",
+      "input": "256.1.1.1",
+      "normalized": null,
+      "outbound_refused": true,
+      "via": ""
+    },
+    {
+      "category": "reserved",
+      "input": "example.test",
+      "normalized": null,
+      "outbound_refused": true,
+      "via": ""
+    }
+  ],
+  "approved_networks": [
+    {
+      "net": "203.0.113.10/32",
+      "private": false,
+      "valid": true
+    },
+    {
+      "net": "203.0.113.0/24",
+      "private": false,
+      "valid": true
+    },
+    {
+      "error": "invalid_destination",
+      "net": "203.0.112.0/23",
+      "private": false,
+      "valid": false
+    },
+    {
+      "error": "invalid_destination",
+      "net": "10.0.0.5/32",
+      "private": false,
+      "valid": false
+    },
+    {
+      "net": "10.0.0.5/32",
+      "private": true,
+      "valid": true
+    },
+    {
+      "net": "10.0.0.0/24",
+      "private": true,
+      "valid": true
+    },
+    {
+      "error": "invalid_destination",
+      "net": "93.184.216.34/32",
+      "private": true,
+      "valid": false
+    },
+    {
+      "error": "invalid_destination",
+      "net": "127.0.0.1/32",
+      "private": true,
+      "valid": false
+    },
+    {
+      "error": "invalid_destination",
+      "net": "169.254.169.254/32",
+      "private": false,
+      "valid": false
+    },
+    {
+      "net": "2001:db8::/48",
+      "private": false,
+      "valid": true
+    },
+    {
+      "error": "invalid_destination",
+      "net": "2001:db8::/47",
+      "private": false,
+      "valid": false
+    },
+    {
+      "net": "fd12:3456::/48",
+      "private": true,
+      "valid": true
+    },
+    {
+      "error": "invalid_destination",
+      "net": "fe80::/64",
+      "private": true,
+      "valid": false
+    },
+    {
+      "error": "invalid_destination",
+      "net": "64:ff9b::/96",
+      "private": false,
+      "valid": false
+    },
+    {
+      "error": "invalid_destination",
+      "net": "::ffff:0:0/96",
+      "private": false,
+      "valid": false
+    },
+    {
+      "error": "invalid_destination",
+      "net": "0.0.0.0/0",
+      "private": false,
+      "valid": false
+    },
+    {
+      "error": "invalid_destination",
+      "net": "203.0.113.1/24",
+      "private": false,
+      "valid": false
+    }
+  ],
+  "description": "Address classification (python/agit8or_connect/addresses.py) and approved-destination address validation (destinations.check_address). Categories: public, private, documentation, loopback, link_local, metadata, multicast, unspecified, broadcast, reserved.",
+  "destination": {
+    "digest": "f9c99e6398795621b2618e87beb855ab6696639f6240d8fa7c3c0adb740f7061",
+    "record": {
+      "addresses": [
+        {
+          "net": "203.0.113.0/24",
+          "private": false
+        },
+        {
+          "net": "10.20.30.40/32",
+          "note": "site link",
+          "private": true
+        }
+      ],
+      "approved_at": 1800000000,
+      "approved_by": [
+        "admin-1",
+        "admin-2"
+      ],
+      "connection_id": "conn-vector-1",
+      "expected_installation_id": "",
+      "host": "peer.example.test",
+      "port": 443,
+      "spki_pins": [
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+      ],
+      "state": "active",
+      "version": 1
+    }
+  },
+  "notice": "TEST-ONLY KEYS. Published seeds; never use outside conformance tests."
+}

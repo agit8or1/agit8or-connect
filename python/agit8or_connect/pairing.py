@@ -152,7 +152,7 @@ def build_request(private_key: Ed25519PrivateKey, *, initiator_app: dict, respon
     return sign_compact(private_key, header, claims), claims
 
 
-def verify_request(token: str, *, responder_installation: str, replay: ReplayStore, now=None) -> Tuple[dict, dict]:
+def verify_request(token: str, *, responder_installation: str, replay: Optional[ReplayStore], now=None) -> Tuple[dict, dict]:
     """(claims, initiator public JWK). The signature is made with the key in
     the header (proof of possession of the connection key it announces);
     payload connection_key must be that same key."""
@@ -178,9 +178,18 @@ def verify_request(token: str, *, responder_installation: str, replay: ReplaySto
         raise ConnectError(INVALID_REQUEST, 'app identity does not match the issuer')
     if not isinstance(claims.get('requested_scopes', []), list):
         raise ConnectError(INVALID_REQUEST, 'requested_scopes must be a list')
+    if replay is not None:
+        record_request(replay, claims)
+    return claims, _keys.public_jwk(key)
+
+
+def record_request(replay: ReplayStore, claims: dict) -> None:
+    """Record a pairing request's jti (single use). A pairing request is signed by a key carried in its own
+    header, so a valid signature authenticates nothing: a responder should call verify_request with
+    replay=None, compare the code, and record only a request whose code matched — otherwise anyone can fill
+    replay storage with self-signed requests."""
     if not replay.add('pairing', f'{claims["iss"]}:{claims["jti"]}', claims['exp'] + 120):
         raise ConnectError(REPLAYED, 'pairing request already submitted', 401)
-    return claims, _keys.public_jwk(key)
 
 
 def build_ack(private_key, *, responder_app: dict, initiator_installation: str, request_id: str, request_jti: str,

@@ -8,6 +8,9 @@ table with a UNIQUE (namespace, key) constraint, or an INSERT ON CONFLICT
 pattern). Record only AFTER the signature verified, so unauthenticated
 callers cannot fill the table.
 
+Implementations: MemoryReplayStore (one process) and storage.SqlReplayStore (SQLite / PostgreSQL,
+multi-process, survives restarts). A store that cannot record MUST raise (fail closed), never answer True.
+
 Namespaces used by the protocol: "assertion" (client assertion jti),
 "dpop" (DPoP proof jti), "event" (webhook event id), "pairing" (pairing
 request jti), "poll" (pairing status proof jti).
@@ -24,16 +27,26 @@ class ReplayStore(Protocol):
 
 
 class MemoryReplayStore:
-    def __init__(self, clock=time.time):
+    """Single process only (tests, development, the reference peer): forgets everything on restart and is
+    not shared between workers. Production hosts use storage.SqlReplayStore (or an equivalent with a
+    database-enforced unique key)."""
+
+    def __init__(self, clock=time.time, max_entries: int = 100000):
         self._seen: Dict[Tuple[str, str], int] = {}
         self._lock = threading.Lock()
         self._clock = clock
+        self._last_sweep = 0.0
+        self.max_entries = max_entries
 
     def add(self, namespace: str, key: str, expires_at: int) -> bool:
         now = self._clock()
         with self._lock:
-            if len(self._seen) > 10000:
+            if now - self._last_sweep > 60 or len(self._seen) > self.max_entries:
                 self._seen = {k: v for k, v in self._seen.items() if v > now}
+                self._last_sweep = now
+                if len(self._seen) > self.max_entries:
+                    from .errors import ConnectError
+                    raise ConnectError('replay_store_unavailable', 'replay store full', 503)
             k = (namespace, key)
             if k in self._seen and self._seen[k] > now:
                 return False
