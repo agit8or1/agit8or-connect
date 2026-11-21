@@ -284,7 +284,7 @@ class ReferencePeer:
                                                           conn.id, now=self.now()))
             if method == 'POST' and path == f'{API}/events':
                 return self._events(headers, body)
-            if path in (f'{API}/capabilities', f'{API}/test', f'{API}/customers/current'):
+            if path in (f'{API}/capabilities', f'{API}/test', f'{API}/customers', f'{API}/customers/current'):
                 return self._resource(method, url, path, headers)
             if method == 'POST' and path == f'{API}/remote-actions':
                 return self._remote_action(method, url, headers, body)
@@ -576,6 +576,13 @@ class ReferencePeer:
             return self._json(200, {'connection_id': conn.id, 'scopes': scopes, 'tenants': grants})
         if path.endswith('/test'):
             return self._json(200, {'ok': True, 'connection_id': conn.id, 'scopes': scopes, 'time': self.now()})
+        if path.endswith('/customers'):
+            if 'customers:read' not in scopes:
+                raise ConnectError('insufficient_scope', 'customers:read is required', 403)
+            rows = [{'tenant': g.remote_tenant_id, 'name': self.tenants.get(g.local_tenant), 'scopes': list(g.scopes)}
+                    for g in self.grants.grants.values()
+                    if g.connection_id == conn.id and g.active and 'customers:read' in g.scopes]
+            return self._json(200, {'tenants': sorted(rows, key=lambda r: r['tenant'])})
         grant = authorize(self.grants, conn.id, headers.get('Agit8or-Tenant', ''), 'customers:read', scopes)
         return self._json(200, {'tenant': grant.remote_tenant_id, 'name': self.tenants.get(grant.local_tenant)})
 
