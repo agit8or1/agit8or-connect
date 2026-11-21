@@ -458,3 +458,9 @@ class SqlActionApprovalStore:
             cur.execute("UPDATE connect_action_approval SET status = 'cancelled' WHERE connection_id = ? AND status "
                         "IN ('pending', 'approved')", (connection_id,))
             return cur.rowcount
+
+
+from .extra import SCHEMA_EXTRA as _SCHEMA_EXTRA  # noqa: E402
+from .extra import SqlAuditLog, SqlEventQueue, SqlSourcePolicyStore  # noqa: E402,F401
+
+SCHEMA.extend(_SCHEMA_EXTRA)
