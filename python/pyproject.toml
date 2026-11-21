@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agit8or-connect"
+version = "1.1.0"
+description = "Reference SDK for the Agit8or Connect app-to-app protocol (agit8or-connect/1, revision 1.1 Quick Connect extensions). Draft; not independently security-reviewed."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["cryptography>=42", "PyJWT>=2.10"]
+license = {text = "MIT"}
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+]
+
+[project.optional-dependencies]
+test = ["PyYAML>=6"]
+
+[tool.setuptools]
+packages = ["agit8or_connect", "agit8or_connect.tools", "agit8or_connect.tests"]

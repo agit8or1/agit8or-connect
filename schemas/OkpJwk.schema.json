@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/agit8or1/agit8or-connect/schemas/OkpJwk.schema.json",
+  "x-source": "openapi/openapi.yaml#/components/schemas/OkpJwk",
+  "type": "object",
+  "required": [
+    "kty",
+    "crv",
+    "x"
+  ],
+  "properties": {
+    "kty": {
+      "type": "string",
+      "const": "OKP"
+    },
+    "crv": {
+      "type": "string",
+      "const": "Ed25519"
+    },
+    "x": {
+      "type": "string"
+    },
+    "kid": {
+      "type": "string"
+    },
+    "use": {
+      "type": "string"
+    },
+    "alg": {
+      "type": "string",
+      "const": "EdDSA"
+    }
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/agit8or1/agit8or-connect/schemas/PairingPollClaims.schema.json",
+  "title": "Pairing status poll proof (PROTOCOL.md §5.2)",
+  "description": "Payload of a JWS with header typ \"agit8or-pairing-poll+jwt\".",
+  "x-jws-typ": "agit8or-pairing-poll+jwt",
+  "type": "object",
+  "required": [
+    "aud",
+    "exp",
+    "iat",
+    "iss",
+    "jti",
+    "request_id"
+  ],
+  "properties": {
+    "iss": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "aud": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "iat": {
+      "type": "integer"
+    },
+    "exp": {
+      "type": "integer"
+    },
+    "jti": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "request_id": {
+      "type": "string"
+    }
+  }
+}

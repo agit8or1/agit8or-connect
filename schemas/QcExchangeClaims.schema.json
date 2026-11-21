@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/agit8or1/agit8or-connect/schemas/QcExchangeClaims.schema.json",
+  "x-source": "openapi/openapi.yaml#/components/schemas/QcExchangeClaims",
+  "x-jws-typ": "agit8or-qc-exchange+jwt",
+  "description": "Payload of the exchange JWS (typ agit8or-qc-exchange+jwt, header kid = thumbprint(K_A), no jwk). The v1 pairing-request claims except pairing_code, plus the binding claims.",
+  "type": "object",
+  "required": [
+    "protocol",
+    "ext",
+    "iss",
+    "aud",
+    "iat",
+    "exp",
+    "jti",
+    "code",
+    "code_verifier",
+    "invitation",
+    "accept_sha256",
+    "app",
+    "connection_id",
+    "discovery_url",
+    "connection_key",
+    "requested_scopes",
+    "proposed_tenants"
+  ],
+  "properties": {
+    "protocol": {
+      "type": "string",
+      "const": "agit8or-connect/1.1"
+    },
+    "ext": {
+      "type": "string",
+      "const": "qc-bootstrap/1"
+    },
+    "iss": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "aud": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "iat": {
+      "type": "integer"
+    },
+    "exp": {
+      "type": "integer",
+      "description": "exp - iat <= 120"
+    },
+    "jti": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{16,128}$"
+    },
+    "code": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{43}$"
+    },
+    "code_verifier": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._~-]{43,128}$"
+    },
+    "invitation": {
+      "type": "string"
+    },
+    "accept_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "app": {
+      "$ref": "QcApp.schema.json"
+    },
+    "connection_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "discovery_url": {
+      "type": "string",
+      "format": "uri"
+    },
+    "connection_key": {
+      "$ref": "OkpJwk.schema.json"
+    },
+    "requested_scopes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "proposed_tenants": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 200
+          }
+        }
+      }
+    }
+  }
+}

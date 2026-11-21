@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/agit8or1/agit8or-connect/schemas/EgressEntry.schema.json",
+  "x-source": "openapi/openapi.yaml#/components/schemas/EgressEntry",
+  "description": "qc-source-binding/1 (docs/QUICK_CONNECT_SPECIFICATION.md §4.4). `net` in canonical form; verifiers refuse any other form.",
+  "type": "object",
+  "required": [
+    "net"
+  ],
+  "properties": {
+    "net": {
+      "type": "string",
+      "maxLength": 49,
+      "examples": [
+        "203.0.113.10/32",
+        "2001:db8:10::/48"
+      ]
+    },
+    "note": {
+      "type": "string",
+      "maxLength": 100
+    }
+  }
+}

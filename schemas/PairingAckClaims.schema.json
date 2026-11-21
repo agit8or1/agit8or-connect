@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/agit8or1/agit8or-connect/schemas/PairingAckClaims.schema.json",
+  "title": "Pairing ack (PROTOCOL.md §5.2)",
+  "description": "Payload of a JWS with header typ \"agit8or-pairing-ack+jwt\".",
+  "x-jws-typ": "agit8or-pairing-ack+jwt",
+  "type": "object",
+  "required": [
+    "app",
+    "aud",
+    "connection_id",
+    "connection_key",
+    "exp",
+    "iat",
+    "iss",
+    "protocol",
+    "request_id",
+    "request_jti",
+    "status"
+  ],
+  "properties": {
+    "protocol": {
+      "type": "string",
+      "const": "agit8or-connect/1"
+    },
+    "iss": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "aud": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "iat": {
+      "type": "integer"
+    },
+    "exp": {
+      "type": "integer"
+    },
+    "request_id": {
+      "type": "string"
+    },
+    "request_jti": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "connection_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "app": {
+      "type": "object",
+      "required": [
+        "type",
+        "version",
+        "display_name",
+        "installation_id"
+      ],
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "installation_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        }
+      }
+    },
+    "connection_key": {
+      "$ref": "OkpJwk.schema.json"
+    },
+    "status": {
+      "type": "string",
+      "const": "pending_approval"
+    }
+  }
+}

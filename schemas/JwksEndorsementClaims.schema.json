@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/agit8or1/agit8or-connect/schemas/JwksEndorsementClaims.schema.json",
+  "title": "JWKS endorsement (PROTOCOL.md §6.4)",
+  "description": "Payload of a JWS with header typ \"agit8or-jwks+jwt\".",
+  "x-jws-typ": "agit8or-jwks+jwt",
+  "type": "object",
+  "required": [
+    "exp",
+    "iat",
+    "iss",
+    "keys_sha256",
+    "sub"
+  ],
+  "properties": {
+    "iss": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "sub": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "keys_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "iat": {
+      "type": "integer"
+    },
+    "exp": {
+      "type": "integer"
+    }
+  }
+}

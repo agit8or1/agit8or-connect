@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/agit8or1/agit8or-connect/schemas/QcInvitationClaims.schema.json",
+  "x-source": "openapi/openapi.yaml#/components/schemas/QcInvitationClaims",
+  "x-jws-typ": "agit8or-qc-invitation+jwt",
+  "description": "Payload of the invitation JWS (typ agit8or-qc-invitation+jwt, header jwk = K_A). Carried in the browser URL; whole JWS <= 4096 chars.",
+  "type": "object",
+  "required": [
+    "protocol",
+    "ext",
+    "extensions",
+    "iss",
+    "aud",
+    "iat",
+    "exp",
+    "jti",
+    "attempt",
+    "app",
+    "base",
+    "redirect_uri",
+    "egress",
+    "requested_scopes",
+    "code_challenge",
+    "code_challenge_method",
+    "nonce"
+  ],
+  "properties": {
+    "protocol": {
+      "type": "string",
+      "const": "agit8or-connect/1.1"
+    },
+    "ext": {
+      "type": "string",
+      "const": "qc-bootstrap/1"
+    },
+    "extensions": {
+      "$ref": "QcExtensions.schema.json"
+    },
+    "iss": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "aud": {
+      "type": "string",
+      "description": "Canonical origin of the responder (approved destination)"
+    },
+    "responder_installation": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "iat": {
+      "type": "integer"
+    },
+    "exp": {
+      "type": "integer",
+      "description": "exp - iat <= 600"
+    },
+    "jti": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{16,128}$"
+    },
+    "attempt": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "app": {
+      "$ref": "QcApp.schema.json"
+    },
+    "base": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "redirect_uri": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "egress": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 8,
+      "items": {
+        "$ref": "EgressEntry.schema.json"
+      }
+    },
+    "requested_scopes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "code_challenge": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{43}$"
+    },
+    "code_challenge_method": {
+      "type": "string",
+      "const": "S256"
+    },
+    "nonce": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{22,128}$"
+    }
+  }
+}

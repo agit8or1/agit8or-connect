@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/agit8or1/agit8or-connect/schemas/ClientAssertionClaims.schema.json",
+  "title": "Client assertion, private_key_jwt (PROTOCOL.md §6.1, RFC 7523)",
+  "description": "Payload of a JWS with header typ \"client-authentication+jwt\".",
+  "x-jws-typ": "client-authentication+jwt",
+  "type": "object",
+  "required": [
+    "aud",
+    "exp",
+    "iat",
+    "iss",
+    "jti",
+    "sub"
+  ],
+  "properties": {
+    "iss": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "sub": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "aud": {
+      "type": "string",
+      "pattern": "^https://"
+    },
+    "iat": {
+      "type": "integer"
+    },
+    "exp": {
+      "type": "integer"
+    },
+    "jti": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    }
+  }
+}

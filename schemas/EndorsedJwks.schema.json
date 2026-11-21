@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/agit8or1/agit8or-connect/schemas/EndorsedJwks.schema.json",
+  "title": "Endorsed JWKS document (PROTOCOL.md §6.4)",
+  "type": "object",
+  "required": [
+    "keys",
+    "endorsement"
+  ],
+  "properties": {
+    "keys": {
+      "type": "array",
+      "items": {
+        "$ref": "OkpJwk.schema.json"
+      }
+    },
+    "endorsement": {
+      "type": "string"
+    }
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/agit8or1/agit8or-connect/schemas/QcProbeResponse.schema.json",
+  "x-source": "openapi/openapi.yaml#/components/schemas/QcProbeResponse",
+  "type": "object",
+  "required": [
+    "protocol",
+    "observed_source",
+    "server_time",
+    "connection_state",
+    "checks",
+    "peer_reached_at"
+  ],
+  "properties": {
+    "protocol": {
+      "type": "string",
+      "const": "agit8or-connect/1.1"
+    },
+    "observed_source": {
+      "type": "string",
+      "description": "Canonical address text"
+    },
+    "server_time": {
+      "type": "integer"
+    },
+    "connection_state": {
+      "type": "string"
+    },
+    "checks": {
+      "type": "object",
+      "required": [
+        "source",
+        "token"
+      ],
+      "properties": {
+        "source": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "not_authorised",
+            "not_enforced"
+          ]
+        },
+        "token": {
+          "type": "string",
+          "const": "ok"
+        }
+      }
+    },
+    "peer_reached_at": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "nonce": {
+      "type": "string"
+    }
+  }
+}

@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/agit8or1/agit8or-connect/schemas/Discovery.schema.json",
+  "x-source": "openapi/openapi.yaml#/components/schemas/Discovery",
+  "type": "object",
+  "required": [
+    "protocol",
+    "versions",
+    "app",
+    "endpoints"
+  ],
+  "properties": {
+    "protocol": {
+      "type": "string",
+      "const": "agit8or-connect"
+    },
+    "versions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "app": {
+      "type": "object",
+      "required": [
+        "type",
+        "installation_id"
+      ],
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "installation_id": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    },
+    "endpoints": {
+      "type": "object",
+      "required": [
+        "pairing",
+        "pairing_status",
+        "token",
+        "jwks"
+      ],
+      "additionalProperties": {
+        "type": "string",
+        "format": "uri"
+      }
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "$ref": "Scope.schema.json"
+      }
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "tenant_model": {
+      "type": "object"
+    },
+    "security": {
+      "type": "object"
+    }
+  }
+}

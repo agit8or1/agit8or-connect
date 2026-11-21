@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/agit8or1/agit8or-connect/schemas/PairingResultClaims.schema.json",
+  "title": "Pairing result (PROTOCOL.md §5.2)",
+  "description": "Payload of a JWS with header typ \"agit8or-pairing-result+jwt\".",
+  "x-jws-typ": "agit8or-pairing-result+jwt",
+  "type": "object",
+  "required": [
+    "aud",
+    "connection_id",
+    "exp",
+    "iat",
+    "iss",
+    "protocol",
+    "request_id",
+    "request_jti",
+    "status"
+  ],
+  "properties": {
+    "protocol": {
+      "type": "string",
+      "const": "agit8or-connect/1"
+    },
+    "iss": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "aud": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "iat": {
+      "type": "integer"
+    },
+    "exp": {
+      "type": "integer"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "approved",
+        "rejected"
+      ]
+    },
+    "request_id": {
+      "type": "string"
+    },
+    "request_jti": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "connection_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "granted_scopes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "requested_scopes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "tenant_grants": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "remote_tenant",
+          "scopes"
+        ],
+        "properties": {
+          "remote_tenant": {
+            "type": "string"
+          },
+          "tenant": {
+            "type": "string"
+          },
+          "local_tenant": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "endpoints": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    }
+  }
+}

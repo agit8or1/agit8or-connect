@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/agit8or1/agit8or-connect/schemas/QcApp.schema.json",
+  "x-source": "openapi/openapi.yaml#/components/schemas/QcApp",
+  "type": "object",
+  "required": [
+    "type",
+    "version",
+    "display_name",
+    "installation_id"
+  ],
+  "properties": {
+    "type": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
+    "display_name": {
+      "type": "string"
+    },
+    "installation_id": {
+      "type": "string",
+      "format": "uuid"
+    }
+  }
+}

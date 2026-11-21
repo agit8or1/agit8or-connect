@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/agit8or1/agit8or-connect/schemas/DpopProofClaims.schema.json",
+  "title": "DPoP proof (PROTOCOL.md §6.3, RFC 9449); header carries the public jwk",
+  "description": "Payload of a JWS with header typ \"dpop+jwt\".",
+  "x-jws-typ": "dpop+jwt",
+  "type": "object",
+  "required": [
+    "htm",
+    "htu",
+    "iat",
+    "jti"
+  ],
+  "properties": {
+    "htm": {
+      "type": "string",
+      "pattern": "^[A-Z]+$"
+    },
+    "htu": {
+      "type": "string",
+      "pattern": "^https://"
+    },
+    "iat": {
+      "type": "integer"
+    },
+    "jti": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "ath": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]+$"
+    }
+  }
+}

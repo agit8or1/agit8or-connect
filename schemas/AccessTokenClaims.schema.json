@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/agit8or1/agit8or-connect/schemas/AccessTokenClaims.schema.json",
+  "title": "DPoP-bound access token (PROTOCOL.md §6.2)",
+  "description": "Payload of a JWS with header typ \"at+jwt\".",
+  "x-jws-typ": "at+jwt",
+  "type": "object",
+  "required": [
+    "aud",
+    "client_id",
+    "cnf",
+    "exp",
+    "iat",
+    "iss",
+    "jti",
+    "scope",
+    "sub"
+  ],
+  "properties": {
+    "iss": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "aud": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "sub": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "client_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "scope": {
+      "type": "string"
+    },
+    "iat": {
+      "type": "integer"
+    },
+    "nbf": {
+      "type": "integer"
+    },
+    "exp": {
+      "type": "integer"
+    },
+    "jti": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "cnf": {
+      "type": "object",
+      "required": [
+        "jkt"
+      ],
+      "properties": {
+        "jkt": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$"
+        }
+      }
+    }
+  }
+}
