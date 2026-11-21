@@ -44,9 +44,14 @@ Only established primitives, from standard libraries (Python `cryptography` + Py
   beyond ±2^53−1 and non-finite numbers are refused. Vectors: `test-vectors/canonical-json.json`.
 - JWS: compact serialisation. Every JWS has `typ`. Header and payload are canonical JSON, so both SDKs produce
   the same bytes for the same input (`test-vectors/tokens.json`).
-- Private keys at rest SHOULD be encrypted with an AEAD (for example AES-256-GCM) whose associated data is bound to
+- Private keys at rest MUST be encrypted with an AEAD (for example AES-256-GCM) whose associated data is bound to
   the table, column **and row** (for example `<table>.private_key#<row uuid>`), so a ciphertext copied to another
-  row does not decrypt. (Local rule; not on the wire.)
+  row does not decrypt. The master key MUST NOT be stored in the same database as the ciphertexts. Development and
+  test setups MAY keep keys in memory only. Both SDKs implement one envelope for this
+  (`keystore.PrivateKeyCipher`, `a8ck1.<master key id>.<nonce>.<ciphertext>`, vectors in
+  `test-vectors/key-envelope.json`); other envelopes are allowed. (Local rule; not on the wire. Revision 1.1 of this
+  document said SHOULD; the stricter wording aligns it with the threat model and the integration guide and changes
+  no message.)
 
 ## 3. Versioning and forward compatibility
 
@@ -274,7 +279,7 @@ it sees an unknown `kid`. A JWKS fetched without an endorsement chain never adds
 | `assets:read`, `tickets:read` | read | planned |
 | `tickets:write` | write | planned |
 | `ticket_analysis:submit` | write | planned |
-| `remote_actions:execute` | high_risk | planned. Each action will also need its own approval. |
+| `remote_actions:execute` | high_risk | planned in hosts; the reference peer implements it with per-action approval (§7.4) |
 | `connection:admin` | admin | planned |
 
 A scope advertised `available: false` is refused at approval time.
@@ -284,6 +289,35 @@ A scope advertised `available: false` is refused at approval time.
 When an approval includes a `high_risk` or `admin` scope, the connection waits in `awaiting_second_approval`.
 The host application opens a protected change. The proposer re-authenticates and confirms. A **different** administrator approves. The approval is refused if the scopes or
 grants changed since the proposal (fingerprint check). The peer sees `pending` until then.
+
+Rules that make the second approval meaningful (reference: `approvals.ElevatedGrantPolicy`):
+
+- The fingerprint is SHA-256 over canonical JSON of the connection id, the remote installation id, the remote key
+  thumbprints, the inbound scopes and the tenant grants with their scopes. Any change invalidates the proposal.
+- Proposer and approver MUST be different administrator accounts, and each MUST have re-authenticated within the
+  last 5 minutes. There is no single-administrator override, including for the installation owner.
+- Unknown scopes and scopes advertised `available: false` are refused (`invalid_scope`), never granted silently.
+- The approval is re-checked when a token is issued and on every API call that uses an elevated scope; a token
+  never carries an elevated scope whose approval was revoked. Revoking an elevated approval sets
+  `tokens_not_before`, so tokens already issued stop working.
+- A host that does not implement second approval MUST treat elevated scopes as unavailable.
+
+### 7.4 Per-action approval (`action-approval/1`, optional)
+
+For calls that act on customer systems (for example under `remote_actions:execute`) the receiving installation
+MAY require an approval per action, by one of **its** administrators, before it acts:
+
+1. The call arrives authenticated and authorised as usual. The receiver records a pending action (connection,
+   tenant, target, action type, SHA-256 of the canonical JSON of the parameters, expiry ≤ 15 min) and answers
+   `403 action_approval_required` with `"approval_id": "<uuid>"` in the error object.
+2. An administrator of the receiver approves or denies it after re-authenticating. The requesting connection or
+   operator cannot approve its own action.
+3. The caller repeats the identical call with the header `Agit8or-Action-Approval: <approval_id>`. The receiver
+   consumes the approval once (an atomic conditional update) and only if connection, tenant, target, action type
+   and parameter digest all match; otherwise it answers `action_approval_required` again.
+
+This adds an error code and a request header and changes no existing message; peers that do not use it never
+see the code. The kill switch blocks approvals and consumption.
 
 ## 8. Tenants
 
@@ -409,10 +443,14 @@ The token endpoint answers in OAuth form instead: `{"error": "<code>", "error_de
 | `pairing_locked` | 403 | too many wrong codes |
 | `not_found` | 404 | |
 | `too_large` | 413 | |
+| `action_approval_required` | 403 | per-action approval needed or not usable (§7.4); carries `approval_id` |
 | `rate_limited` | 429 | with `Retry-After` |
 | `kill_switch` | 503 | |
+| `replay_store_unavailable` / `rate_limit_unavailable` | 503 | the receiver cannot check replay or limits, so it refuses (fail closed) |
 | `unsupported_version` | 400 | |
 | `blocked_destination` | — | client-side SSRF refusal (never on the wire) |
+| `destination_changed` / `security_blocked` / `destination_policy_unavailable` | — | client-side approved-destination refusals (never on the wire) |
+| `certificate_invalid` / `certificate_name_mismatch` / `spki_mismatch` / `deadline_exceeded` | — | client-side transport refusals (never on the wire) |
 
 ## 14. Audit
 
@@ -468,9 +506,9 @@ grants), and compromise of the host's master key.
 ## 17. Later phases (design notes, not implemented)
 
 - **Delegated-user profile.** Actor claims (`act: {sub: "user-<id>"}`) in access tokens for calls made on behalf
-  of a person. Per-action approval for `remote_actions:execute`. More scopes (`assets:read`, `tickets:*`, …)
+  of a person. (Per-action approval is now §7.4.) More scopes (`assets:read`, `tickets:*`, …)
   become available, with events for action-proposal status, remote-session confirmation and ticket state.
 - **More applications:** catalogs and event types per application, plus event forwarding with `origin`/`hops`.
-- **Operations:** shared rate-limit store, inbound mTLS, signed exports of the audit chain, connection health
+- **Operations:** inbound mTLS, signed exports of the audit chain, connection health
   dashboards and alerting on repeated authentication failures (see [CONNECTION_HEALTH.md](CONNECTION_HEALTH.md)
   for what revision 1.1 hosts do today).

@@ -20,6 +20,7 @@ from agit8or_connect import audit, keys, pairing, tokens, webhooks
 from agit8or_connect import quick_connect as qc
 from agit8or_connect.canonical import b64url, canonical_json, sha256_hex
 from agit8or_connect.jws import sign_compact, unverified_header, unverified_payload
+from agit8or_connect.tools.vectors_hardening import hardening_files
 
 NOW = 1767225600  # 2026-01-01T00:00:00Z
 OUT = os.environ.get('AGIT8OR_CONNECT_VECTORS') or os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..', 'test-vectors')
@@ -584,6 +585,7 @@ def build():
         'audit-chain.json': audit_vectors(),
         'jwks.json': jwks_vectors(),
         **qc_files(),
+        **hardening_files(),
     }
 
 

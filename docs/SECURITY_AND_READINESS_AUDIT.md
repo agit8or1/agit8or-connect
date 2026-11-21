@@ -240,28 +240,28 @@ Updated as the hardening work lands. "Open" means not addressed in this reposito
 
 | Finding | Severity | Status |
 |---|---|---|
-| F-01 | High | Open |
-| F-02 | High | Open |
-| F-03 | High | Open |
-| F-04 | High | Open |
-| F-05 | High | Open |
-| F-06 | Medium | Open |
-| F-07 | Medium | Open |
-| F-08 | Medium | Open |
-| F-09 | Medium | Open |
-| F-10 | Medium | Open |
-| F-11 | Medium | Open |
-| F-12 | Medium | Open |
-| F-13 | Medium | Open |
-| F-14 | Medium | Open |
-| F-16 | Medium | Open |
-| F-15 | Low | Open |
-| F-17 | Low | Open |
-| F-18 | Low | Open |
-| F-19 | Low | Open |
-| F-20 | Low | Open |
-| F-22 | Low | Open |
-| F-21 | Info | Open |
-| F-23 | Info | Open |
-| F-24 | Info | Open |
-| F-25 | Info | Open |
+| F-01 | High | Fixed (P0): two distinct re-authenticated administrators bound to a request fingerprint; re-checked at token issue and every use; tests `test_security_regressions.ElevatedScopes`, TS `hardening.test.ts` |
+| F-02 | High | Fixed (P0): unknown and unavailable scopes refused at approval (`invalid_scope`) |
+| F-03 | High | Fixed (P0): approved-destination `GuardedTransport` in both SDKs; local TLS tests (`test_transport`, TS `hardening.test.ts`) |
+| F-04 | High | Fixed (P0): `storage.SqlReplayStore` (SQLite locally; PostgreSQL in the CI service job only) |
+| F-05 | High | Fixed (P0): retiring keys refused after the overlap, private half wiped; remote key ring refreshed on expiry |
+| F-06 | Medium | Fixed (P0): no discovery fetch at pairing submit; read when an administrator approves |
+| F-07 | Medium | Fixed (P0): shared fail-closed `RateLimiter` on pairing, token, authentication and signature failures |
+| F-08 | Medium | Fixed (P0): PROTOCOL §2 now MUST; `keystore.PrivateKeyCipher` in both SDKs with a shared vector |
+| F-09 | Medium | Fixed (P0): one deadline, request cap, SPKI pins, expiry warning, distinct certificate errors (new transport); legacy transport gained deadline and request cap |
+| F-10 | Medium | Partial (P0): kill switch and `suspended` in the reference peer; `testing` state and connection-test gate planned (P1 lifecycle) |
+| F-11 | Medium | Fixed (P0): explicit address tables independent of the runtime, pinned by `addresses.json` |
+| F-12 | Medium | Fixed (P0): pairing request recorded for replay only after the code matches |
+| F-13 | Medium | Partial (P0): TS `authenticateResourceRequest`, scope `Catalog`, stores, approvals, keystore; discovery parsing and tenant authorisation helpers still Python-only |
+| F-14 | Medium | Open (P1 audit checkpoints) |
+| F-16 | Medium | Open (P1 trusted-proxy resolver) |
+| F-15 | Low | Fixed (P0): event-type allowlist and authorisation before the event id is recorded |
+| F-17 | Low | Fixed (P0): both in-memory stores pruned over time and bounded; documented as single-process |
+| F-18 | Low | Fixed (P0): IPv4-mapped sources compared as IPv4 in both SDKs |
+| F-19 | Low | Fixed (P0): `retire_due` runs on token use; `_pairing_status` uses the request key |
+| F-20 | Low | Fixed (P0): one error for unknown and inactive clients |
+| F-22 | Low | Open (P2 CI supply chain) |
+| F-21 | Info | Partial (P0): D-7 and D-8 fixed; D-9 (`/customers` in the reference peer) open |
+| F-23 | Info | Open (P1 DPoP nonce extension) |
+| F-24 | Info | Partial (P0): per-action approval (`action-approval/1`, PROTOCOL §7.4); delegated-user actor profile open (P1) |
+| F-25 | Info | Open (P1 integration harness) |

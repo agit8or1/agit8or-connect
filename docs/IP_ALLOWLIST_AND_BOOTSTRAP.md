@@ -148,15 +148,38 @@ client pinned to the connection's **approved destination**:
 - Optional SPKI pins compared after the handshake, before any request bytes (`spki_mismatch`).
 - Keep TLS client keys out of plaintext files (load from memory where the TLS library allows it).
 
-The Python SDK's `MinimalGuardedTransport` implements the address, TLS, redirect and proxy rules but has **no**
-approved-destination store; a host adds the pin. The TypeScript SDK has no transport.
+Both SDKs implement these rules in `GuardedTransport` (`python/agit8or_connect/transport.py`,
+`typescript/src/transport.ts`), driven by a `DestinationPolicy`:
+
+- The policy returns the connection's approved record (host, port, approved addresses with an explicit
+  `private` flag and optional validity window, private CA, SPKI pins, expected installation id, state, version).
+  Records carry a SHA-256 integrity digest over their canonical JSON; a missing, unreadable, inconsistent or
+  tampered record refuses the request with `destination_policy_unavailable` (503). There is no fallback to the
+  system resolver or to "any public address".
+- Address classes come from explicit tables that do not depend on the language runtime
+  (`test-vectors/addresses.json` pins them for both SDKs). IPv4-mapped and NAT64 forms are classified by the
+  IPv4 address they carry; 6to4, Teredo, site-local (`fec0::/10`) and other special ranges are refused.
+- Certificate failures are distinguished: `certificate_invalid`, `certificate_name_mismatch`, `spki_mismatch`.
+  A certificate expiring within 21 days (configurable) produces a `certificate_expiring` warning on the response.
+- One deadline covers resolution, connection, handshake and the whole response; `deadline_exceeded` (504).
+- The headers `Host`, `Proxy-*`, `Connection`, `Transfer-Encoding` and `Content-Length` cannot be set by callers.
+- `preview_destination` (Python) reads what an address change would look like (resolved addresses, certificate
+  names, SPKI) without sending any request, for the review screen.
+
+Stores: `MemoryDestinationStore` (tests), `SqlDestinationStore` (SQLite or PostgreSQL, Python) and
+`SqliteDestinationStore` (TypeScript), all with compare-and-set on `version`. The older Python
+`MinimalGuardedTransport` remains for compatibility; it applies only the address-class rules.
 
 ### 4.1 Changes of address (dynamic IP, CDN)
 
-- A resolved address outside the pin: the request fails with `destination_changed`, the connection becomes
-  **Security Blocked**, and the new address and certificate names are kept as evidence.
-- An administrator approves the new address (a reviewed change; a second administrator if it is private). The
-  connection is retested and returns to active only when the test passes.
+- A resolved address outside the pin: the request fails with `destination_changed` and its `evidence`
+  (host, approved and observed addresses, time). The host calls `block(connection_id, evidence)`: the record moves
+  to `security_blocked` (a new version; evidence is sanitised and size-capped) and every later request fails with
+  `security_blocked` until a reviewed change.
+- An administrator proposes the change; a **different** administrator approves it (`propose_change` /
+  `approve_change`; a private address needs two approvers, neither of them the proposer). Old and new addresses
+  can overlap for at most 7 days (`with_migration`). The connection is retested and returns to active only when
+  the test passes. There is no single-administrator override.
 - Peers behind rotating addresses can be approved as a range (at most IPv4 `/24`, IPv6 `/48`).
 
 See [AUTO_RECONNECT.md](AUTO_RECONNECT.md) for why these failures never reconnect automatically.

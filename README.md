@@ -37,8 +37,9 @@ Revision 1.1 is additive: nothing in v1 changes, and a 1.0 peer keeps working wi
 
 ## Running the tests and the conformance suite
 
-Requirements: Python ≥ 3.10 with `cryptography` and `PyJWT` (`PyYAML` optional), Node ≥ 22.18. No network access
-and no npm packages are needed.
+Requirements: Python ≥ 3.10 with `cryptography` and `PyJWT` (`PyYAML`, `hypothesis` and `psycopg` optional),
+Node ≥ 22.18. No network access and no npm packages are needed. The PostgreSQL store tests run when
+`AGIT8OR_CONNECT_TEST_POSTGRES_DSN` points at a disposable database.
 
 ```bash
 pip install "cryptography>=42" "PyJWT>=2.10" PyYAML
@@ -76,14 +77,19 @@ See [conformance/README.md](conformance/README.md) for what each part proves.
 
 ## Known limitations
 
-- Not independently security-reviewed; no independent second implementation yet.
-- The TypeScript SDK builds and verifies messages but has no guarded HTTP transport; bring your own client that
-  follows [IP_ALLOWLIST_AND_BOOTSTRAP.md §4](docs/IP_ALLOWLIST_AND_BOOTSTRAP.md#4-outbound-approved-destinations).
-- The Python `MinimalGuardedTransport` enforces address, TLS, redirect and proxy rules but has no
-  approved-destination store; hosts add the pin.
-- The reference peer is in-memory test code (no sockets, no persistence) and has no TypeScript counterpart.
-- Delegated-user (actor) claims, per-action approval for high-risk scopes and event forwarding across more than two
-  applications are design notes only ([PROTOCOL.md §17](docs/PROTOCOL.md)).
+- Not independently security-reviewed. The hardening work on the `hardening/*` branches is described with its
+  evidence in [docs/SECURITY_AND_READINESS_AUDIT.md](docs/SECURITY_AND_READINESS_AUDIT.md); "tested" there means the
+  tests in this repository (mocked, local TLS on 127.0.0.1, or the CI PostgreSQL service), not a field deployment.
+- No independent second implementation yet: the Python and TypeScript SDKs are written by the same project.
+- Both SDKs now have an approved-destination `GuardedTransport` (approved host, port and addresses; TLS with a
+  private CA and SPKI pins; one deadline; size caps). It is exercised against local TLS servers only; DNS
+  answers for real hosts are not part of the tests.
+- Persistent replay, rate-limit, destination and approval stores exist for SQLite (both SDKs) and PostgreSQL
+  (Python, psycopg 3). PostgreSQL is tested only in CI.
+- The reference peer is in-memory test code (no sockets) and has no TypeScript counterpart.
+- Delegated-user (actor) claims and event forwarding across more than two applications are design notes only
+  ([PROTOCOL.md §17](docs/PROTOCOL.md)). Per-action approval exists as the optional `action-approval/1` behaviour
+  of the reference peer and the `approvals` modules.
 - The signed vector messages carry example application `type` / `display_name` values from the original vector
   generation. They are opaque test strings; changing them would change every signature.
 

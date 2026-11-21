@@ -17,7 +17,8 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-test = ["PyYAML>=6"]
+test = ["PyYAML>=6", "hypothesis>=6.100"]
+postgres = ["psycopg>=3.1"]
 
 [tool.setuptools]
-packages = ["agit8or_connect", "agit8or_connect.tools", "agit8or_connect.tests"]
+packages = ["agit8or_connect", "agit8or_connect.storage", "agit8or_connect.tools", "agit8or_connect.tests"]

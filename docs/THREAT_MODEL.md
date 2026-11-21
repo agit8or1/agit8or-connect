@@ -26,11 +26,11 @@ Covers `agit8or-connect/1` ([PROTOCOL.md](PROTOCOL.md) §16), the Quick Connect 
 | Rogue code holder pairs | Needs both administrators' approval; nothing is reachable without explicit grants |
 | SSRF via discovery / endpoints | Same-origin endpoints, connect-time IP checks, metadata always blocked, no redirects or proxies, discovery only on an administrator action |
 | Stolen access token | 300 s lifetime, DPoP binding, `tokens_not_before` |
-| Replay (assertion, DPoP, poll, pairing request, event) | `jti` / event-id stores with expiry and a unique constraint; events idempotent |
+| Replay (assertion, DPoP, poll, pairing request, event) | `jti` / event-id stores with expiry and a database-enforced unique key, shared by all workers and surviving restarts (`storage.SqlReplayStore`: SQLite or PostgreSQL); a store failure refuses the request (`replay_store_unavailable`, 503); pairing requests are recorded only after the code matches; events are recorded only after authorisation; events idempotent |
 | Cross-tenant access within a connection | Grants per connection, resolution in the caller's namespace, scope ∩ grant scope |
 | Cross-installation confusion | Everything keyed by connection; tokens bound to `client_id` and `cnf.jkt` |
-| Key compromise | Rotation, revoke, kill switch; private keys encrypted with row-bound associated data |
-| Privilege escalation | High-risk / admin scopes need two administrators; unavailable scopes refused; tokens never broader than grants |
+| Key compromise | Rotation (the retiring key stops being accepted after the overlap, and its private half is wiped), revoke (private keys wiped), kill switch; private keys MUST be encrypted at rest with row-bound associated data (`keystore.PrivateKeyCipher`), master key outside the database |
+| Privilege escalation | High-risk / admin scopes need two **distinct**, freshly re-authenticated administrators bound to a fingerprint of the exact request (scopes, tenant grants, keys, installation); approval re-checked at token issue and at every use; unknown and unavailable scopes refused; tokens never broader than grants; optional per-action approval (`action-approval/1`): single use, bound to target, action and a parameter digest, operator cannot approve their own action |
 | Event loops | `origin` and `hops` guard |
 | Audit tampering | Hash chain, append-only storage, verify command (detects, cannot prevent) |
 | Secret leakage | Audit detail scrubbing; tests scan logs, responses and pages for codes, tokens and keys |
@@ -59,6 +59,7 @@ Covers `agit8or-connect/1` ([PROTOCOL.md](PROTOCOL.md) §16), the Quick Connect 
 |---|---|
 | Connect endpoints exposed to the whole Internet | Default-deny two-layer source allowlist before authentication, independent of any general API policy |
 | Unauthenticated growth of the audit chain / write-lock contention | Refusals go to a folded, prunable log; at most one aggregated chain record per minute |
+| Brute force and floods (pairing, Quick Connect, token, authentication, signatures) | Shared sliding-window limits keyed by connection and source (`ratelimit.RateLimiter` over a shared store); a store failure refuses (`rate_limit_unavailable`); `Retry-After` on 429 |
 | Pairing denial of service with wrong codes | Codes usable only from the address the invitation was created for; wrong codes count only against those invitations |
 | DNS hijack + mis-issued certificate redirecting events | Approved-destination pin on every resolved and connected address, optional SPKI pin; change → Security Blocked, never silent |
 | Lockout of a legitimate peer by a rule change | Preview against every active connection's observed source; rollback narrows only; server-side recovery path for the owner |
@@ -75,7 +76,9 @@ Covers `agit8or-connect/1` ([PROTOCOL.md](PROTOCOL.md) §16), the Quick Connect 
 
 ## 5. Residual risks and open items
 
-- Rate limits held in a per-process cache multiply by the number of worker processes; use a shared store.
+- Rate limits are only shared if the host gives every worker the same store (SQL store); the in-memory store is per process.
+- PostgreSQL behaviour is tested in CI only (service container); SQLite locally.
+- The transport tests run against local TLS servers on 127.0.0.1 with a test-only CA; DNS answers for real hosts are not tested.
 - An unauthenticated request naming an unknown key id can make a host fetch the peer's JWKS (bounded to once a
   minute per connection).
 - Discovery and unauthenticated health reveal the application type, version and installation id to anyone the

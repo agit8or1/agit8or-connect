@@ -1,0 +1,1 @@
+TEST-ONLY certificates and private keys for the TypeScript transport tests (127.0.0.1 listeners). Published on purpose; never trust them anywhere else. Regenerate with `python tools/make_tls_fixtures.py`.

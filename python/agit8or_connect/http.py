@@ -1,4 +1,9 @@
-"""Transport interface and a minimal SSRF-guarded stdlib transport.
+"""Transport interface, the Response type, and the legacy address-class-only transport.
+
+For connection traffic use `transport.GuardedTransport`: it enforces the connection's APPROVED
+DESTINATION (host, port, addresses, CA, SPKI pins). `MinimalGuardedTransport` below only decides whether
+an address CLASS is acceptable; it does not pin a connection to its approved addresses and is kept for
+backward compatibility and for read-only checks (it is not sufficient for a production host).
 
 The SDK never opens a socket except through a Transport:
 
@@ -23,29 +28,27 @@ HTTP client) wherever the SDK takes one. MinimalGuardedTransport:
 from __future__ import annotations
 
 import http.client
-import ipaddress
 import socket
+import time
 import ssl
 from dataclasses import dataclass, field
-from typing import Dict, Optional, Protocol
+from typing import Dict, List, Optional, Protocol
 from urllib.parse import urlsplit
 
+from . import addresses
 from .errors import BLOCKED_DESTINATION, ConnectError, TOO_LARGE, TRANSPORT
 
 DEFAULT_MAX_BYTES = 2 * 1024 * 1024
 DEFAULT_TIMEOUT = 10.0
-
-_ALWAYS_BLOCKED = tuple(ipaddress.ip_network(n) for n in (
-    '0.0.0.0/8', '169.254.169.254/32', '169.254.170.2/32', '169.254.170.23/32', '192.0.0.192/32',
-    '100.100.100.200/32', '224.0.0.0/4', '240.0.0.0/4', '255.255.255.255/32', '::/128', 'fd00:ec2::254/128',
-    'ff00::/8'))
-
 
 @dataclass
 class Response:
     status: int
     headers: Dict[str, str] = field(default_factory=dict)
     body: bytes = b''
+    peer_address: str = ''                       # set by GuardedTransport
+    certificate: Optional[dict] = None           # sanitised peer certificate details (GuardedTransport)
+    warnings: List[str] = field(default_factory=list)
 
     def header(self, name: str) -> str:
         for k, v in self.headers.items():
@@ -59,39 +62,27 @@ class Transport(Protocol):
                 body: Optional[bytes] = None) -> Response: ...
 
 
-# Private ranges reachable only with allow_private (and never anything else
-# that is not public).
-_PRIVATE_OK = tuple(ipaddress.ip_network(n) for n in (
-    '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16', '100.64.0.0/10', 'fc00::/7'))
-_NAT64 = ipaddress.ip_network('64:ff9b::/96')
-
-
 def ip_allowed(ip: str, allow_private: bool) -> bool:
-    try:
-        addr = ipaddress.ip_address(ip)
-    except ValueError:
-        return False
-    if addr.version == 6:
-        if addr.scope_id:
-            return False
-        if addr.ipv4_mapped is not None:
-            addr = addr.ipv4_mapped
-        elif addr in _NAT64:
-            addr = ipaddress.IPv4Address(int(addr) & 0xFFFFFFFF)
-    if any(addr.version == n.version and addr in n for n in _ALWAYS_BLOCKED):
-        return False
-    if addr.is_loopback or addr.is_link_local or addr.is_unspecified or addr.is_multicast:
-        return False   # always, whatever allow_private says
-    if addr.is_global and not (addr.is_private or addr.is_reserved or addr.is_multicast):
+    """Address-class check (addresses.py tables, identical on every Python version): public addresses
+    are allowed; private ones (RFC 1918, CGNAT, ULA, local-use NAT64) only with `allow_private`;
+    loopback, link-local, metadata, multicast, unspecified, broadcast, reserved and documentation
+    addresses never. IPv4-mapped and NAT64 addresses are judged by the IPv4 address they carry."""
+    info = addresses.classify(ip)
+    if info.category == addresses.PUBLIC:
         return True
-    return bool(allow_private) and any(addr.version == n.version and addr in n for n in _PRIVATE_OK)
+    return bool(allow_private) and info.category == addresses.PRIVATE
 
 
 class MinimalGuardedTransport:
     def __init__(self, *, allow_private: bool = False, ca_pem: Optional[str] = None,
                  max_bytes: int = DEFAULT_MAX_BYTES, timeout: float = DEFAULT_TIMEOUT,
-                 allow_loopback_http: bool = False, resolver=socket.getaddrinfo):
+                 allow_loopback_http: bool = False, resolver=socket.getaddrinfo,
+                 max_request_bytes: int = 1024 * 1024, total_timeout: Optional[float] = None):
         self.allow_private = allow_private
+        self.max_request_bytes = max_request_bytes
+        # One deadline over the whole request (default 3 x the per-operation timeout), so a peer that
+        # drips one byte per socket timeout cannot hold a worker indefinitely.
+        self.total_timeout = total_timeout if total_timeout is not None else 3 * timeout
         self.max_bytes = max_bytes
         self.timeout = timeout
         self.allow_loopback_http = allow_loopback_http
@@ -129,9 +120,13 @@ class MinimalGuardedTransport:
             port = p.port or 443
         else:
             raise ConnectError(BLOCKED_DESTINATION, 'only https is allowed', 400)
+        if body is not None and len(body) > self.max_request_bytes:
+            raise ConnectError(TOO_LARGE, 'request body too large', 413)
+        end = time.monotonic() + self.total_timeout
         ips = self._resolve(host, port)
         path = (p.path or '/') + (f'?{p.query}' if p.query else '')
         transport = self
+        opened = []
 
         class _Conn(http.client.HTTPSConnection if p.scheme == 'https' else http.client.HTTPConnection):
             def connect(self_inner):
@@ -142,6 +137,7 @@ class MinimalGuardedTransport:
                     raise ConnectError(BLOCKED_DESTINATION, 'connected peer is not the validated address', 502)
                 if p.scheme == 'https':
                     sock = transport.context.wrap_socket(sock, server_hostname=host)
+                opened.append(sock)
                 self_inner.sock = sock
 
         kwargs = {'timeout': self.timeout}
@@ -151,10 +147,20 @@ class MinimalGuardedTransport:
         try:
             conn.request(method, path, body=body, headers=dict(headers or {}))
             r = conn.getresponse()
-            data = r.read(self.max_bytes + 1)
-            if len(data) > self.max_bytes:
-                raise ConnectError(TOO_LARGE, 'response too large', 502)
-            return Response(r.status, {k: v for k, v in r.getheaders()}, data)
+            chunks, total = [], 0
+            while True:
+                left = end - time.monotonic()
+                if left <= 0:
+                    raise ConnectError(TRANSPORT, f'{host} did not answer in time', 504)
+                opened[0].settimeout(min(self.timeout, left))
+                chunk = r.read1(65536)
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > self.max_bytes:
+                    raise ConnectError(TOO_LARGE, 'response too large', 502)
+                chunks.append(chunk)
+            return Response(r.status, {k: v for k, v in r.getheaders()}, b''.join(chunks))
         except ConnectError:
             raise
         except ssl.SSLError as e:

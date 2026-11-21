@@ -20,7 +20,14 @@ result, tokens and events. Without it (the default) the peer is exactly the
 v1-only peer it always was, which is how 1.0 <-> 1.1 interop is tested.
 
 It is NOT production code: state lives in dicts, and requests are routed by a
-`Network` object instead of sockets.
+`Network` object instead of sockets. It does demonstrate the required security
+behaviour: elevated scopes need two administrators (approvals.py) and every
+use of one needs a per-action approval; unknown or unavailable scopes are
+never granted; nothing is fetched from a peer before an administrator acts;
+a rotated-out key stops being accepted; limits are counted in a shared store
+(ratelimit.py) when one is passed; the kill switch blocks the API and
+approvals. Its lifecycle is simplified (approved connections are `active`
+at once); hosts follow docs/CONNECTION_HEALTH.md (`lifecycle.py`).
 """
 from __future__ import annotations
 
@@ -34,10 +41,13 @@ from urllib.parse import urlsplit
 
 from . import PROTOCOL_ID, discovery, keys, pairing, rotation, tokens, webhooks
 from . import quick_connect as qc
+from .approvals import (ACTION_APPROVAL_HEADER, ActionApprovals, AdminAuth, ElevatedGrantPolicy,
+                        MemoryActionApprovalStore, MemoryGrantApprovalStore, grant_fingerprint)
 from .canonical import sha256_hex
 from .errors import (ConnectError, CONNECTION_INACTIVE, EXTENSION_NOT_NEGOTIATED, IDENTITY_MISMATCH, INVALID_CLIENT,
-                     INVALID_PAIRING_CODE, INVALID_REQUEST, INVALID_SCOPE, PAIRING_LOCKED,
+                     INVALID_PAIRING_CODE, INVALID_REQUEST, INVALID_SCOPE, KILL_SWITCH, PAIRING_LOCKED,
                      SOURCE_NOT_AUTHORISED)
+from .ratelimit import MemoryRateLimitStore, RateLimiter
 from .http import Response
 from .replay import MemoryReplayStore
 from .scopes import HIGH_RISK, READ, WRITE, ADMIN, Catalog, Scope, parse_scope_string, require_subset
@@ -113,6 +123,11 @@ class PeerConnection:
     tokens_not_before: int = 0
     received_events: List[dict] = field(default_factory=list)
     token_cache: dict = field(default_factory=dict)
+    request_key: object = None                 # responder: the initiator key the pairing request was signed with
+    remote_keys_expire_at: int = 0             # endorsement expiry of the remote key ring (refetch after)
+    remote_keys_fetched_at: int = 0
+    pending: dict = field(default_factory=dict)  # an approval waiting for the second administrator
+    fingerprint: str = ''                       # elevated-grant fingerprint of the active approval
 
     def active_key(self):
         for kid, k in self.keys.items():
@@ -122,10 +137,11 @@ class PeerConnection:
 
     def verifying_keys(self):
         return {kid: k['private'].public_key() for kid, k in self.keys.items()
-                if k['state'] in rotation.VERIFYING_STATES}
+                if k['state'] in rotation.VERIFYING_STATES and k['private'] is not None}
 
     def published_keys(self):
-        return [keys.public_jwk(k['private']) for k in self.keys.values() if k['state'] in rotation.PUBLISHED_STATES]
+        return [keys.public_jwk(k['private']) for k in self.keys.values()
+                if k['state'] in rotation.PUBLISHED_STATES and k['private'] is not None]
 
 
 class ReferencePeer:
@@ -133,7 +149,8 @@ class ReferencePeer:
                  display_name: str = 'Reference peer', catalog: Catalog = REFERENCE_CATALOG,
                  clock: Callable[[], float] = time.time, tenants: Optional[Dict[str, str]] = None,
                  quick_connect: bool = False, egress: Optional[List[str]] = None,
-                 source_address: Optional[str] = None):
+                 source_address: Optional[str] = None, replay=None, rate_limiter: Optional[RateLimiter] = None,
+                 elevated: Optional[ElevatedGrantPolicy] = None, actions: Optional[ActionApprovals] = None):
         self.base = base_url.rstrip('/')
         self.network = network
         self.installation_id = str(uuid.uuid4())
@@ -141,7 +158,13 @@ class ReferencePeer:
                     'installation_id': self.installation_id}
         self.catalog = catalog
         self.clock = clock
-        self.replay = MemoryReplayStore(clock)
+        self.replay = replay if replay is not None else MemoryReplayStore(clock)
+        self.kill_switch = False
+        self.limits = rate_limiter or RateLimiter(MemoryRateLimitStore(), clock=clock)
+        self.elevated = elevated or ElevatedGrantPolicy(MemoryGrantApprovalStore(), catalog, clock=clock,
+                                                        kill_switch=lambda: self.kill_switch)
+        self.actions = actions or ActionApprovals(MemoryActionApprovalStore(), clock=clock,
+                                                  kill_switch=lambda: self.kill_switch)
         self.grants = MemoryTenantResolver()
         self.tenants = dict(tenants or {'cust-1': 'Customer One', 'cust-2': 'Customer Two'})
         self.pepper = secrets.token_bytes(32)
@@ -203,7 +226,18 @@ class ReferencePeer:
         return Response(status, h, json.dumps(obj).encode())
 
     def _err(self, e: ConnectError):
-        return self._json(e.status, e.as_dict())
+        h = {}
+        if e.status == 401 and e.code in ('invalid_token', 'invalid_dpop_proof', 'replayed', 'expired'):
+            h['WWW-Authenticate'] = f'DPoP error="{e.code}", algs="EdDSA"'
+        if e.status == 429:
+            h['Retry-After'] = str(getattr(e, 'retry_after', 60))
+        body = e.as_dict()
+        if getattr(e, 'approval_id', None):
+            body['error']['approval_id'] = e.approval_id
+        return self._json(e.status, body, h)
+
+    def _source(self) -> str:
+        return self.network.current_source() or 'unknown'
 
     # --- server side -----------------------------------------------------------------
     def handle(self, method, url, headers, body) -> Response:
@@ -212,7 +246,10 @@ class ReferencePeer:
             if method == 'GET' and path == discovery.WELL_KNOWN:
                 return self._json(200, self.document())
             if method == 'GET' and path == f'{API}/health':
-                return self._json(200, {'status': 'ok', 'protocol': PROTOCOL_ID, 'time': self.now()})
+                return self._json(200, {'status': 'ok', 'protocol': PROTOCOL_ID, 'time': self.now(),
+                                        'installation_id': self.installation_id})
+            if self.kill_switch and (path.startswith(API) or path.startswith('/agit8or-connect/')):
+                raise ConnectError(KILL_SWITCH, 'Agit8or Connect is stopped on this installation', 503)
             if method == 'POST' and path == f'{API}/pairing/requests':
                 return self._pairing_submit(json.loads(body or b'{}'))
             if method == 'POST' and path.startswith(f'{API}/pairing/requests/') and path.endswith('/status'):
@@ -230,6 +267,8 @@ class ReferencePeer:
                 return self._events(headers, body)
             if path in (f'{API}/capabilities', f'{API}/test', f'{API}/customers/current'):
                 return self._resource(method, url, path, headers)
+            if method == 'POST' and path == f'{API}/remote-actions':
+                return self._remote_action(method, url, headers, body)
             if self.quick_connect and method == 'POST' and path == qc.EXCHANGE_PATH:
                 return self._qc_exchange(url, headers, body)
             if self.quick_connect and method == 'POST' and path == qc.PROBE_PATH:
@@ -245,13 +284,19 @@ class ReferencePeer:
         return code
 
     def _pairing_submit(self, data) -> Response:
+        src = self._source()
+        self.limits.check('pairing.address', src)
+        self.limits.check('pairing.global', 'all')
+        self.limits.ensure_below('pairing.failed_code.address', src)
         token = data.get('request') if isinstance(data, dict) else None
+        # replay=None: the request is self-signed; its jti is recorded only once the code matched.
         claims, jwk = pairing.verify_request(token, responder_installation=self.installation_id,
-                                             replay=self.replay, now=self.now())
+                                             replay=None, now=self.now())
         open_inv = [i for i in self.invitations if not i['used'] and not i['burned'] and i['expires'] > self.now()]
         inv = next((i for i in open_inv if pairing.code_matches(claims['pairing_code'], i['hash'], self.pepper)),
                    None)
         if inv is None:
+            self.limits.hit('pairing.failed_code.address', src)
             for i in open_inv:
                 i['attempts'] += 1
                 if i['attempts'] >= pairing.MAX_ATTEMPTS:
@@ -259,19 +304,20 @@ class ReferencePeer:
             if open_inv and all(i['burned'] for i in open_inv):
                 raise ConnectError(PAIRING_LOCKED, 'too many wrong codes: ask for a new invitation', 403)
             raise ConnectError(INVALID_PAIRING_CODE, 'pairing code invalid or expired', 400)
+        pairing.record_request(self.replay, claims)
         inv['used'] = True
         conn = PeerConnection(id=str(uuid.uuid4()), role='responder', state='awaiting_local_approval',
                               remote_installation=claims['iss'], remote_app=claims['app'],
                               remote_connection_id=claims['connection_id'],
                               remote_keys={jwk['kid']: keys.public_key_from_jwk(jwk)},
+                              remote_keys_expire_at=self.now() + 3600,
                               peer_requested_scopes=list(claims.get('requested_scopes') or []),
                               proposed_tenants=pairing.tenant_list(claims.get('proposed_tenants')),
-                              request_id=str(uuid.uuid4()), request_jti=claims['jti'], request_jws=token)
-        # Our discovery of THEM (callback / their endpoints), fetched now.
-        info = discovery.fetch(self.network, claims['discovery_url'])
-        if info.installation_id != claims['iss']:
-            raise ConnectError(INVALID_REQUEST, 'initiator discovery identity mismatch')
-        conn.remote_endpoints = info.endpoints
+                              request_id=str(uuid.uuid4()), request_jti=claims['jti'], request_jws=token,
+                              request_key=keys.public_key_from_jwk(jwk))
+        # The initiator's discovery_url is NOT fetched here (PROTOCOL.md §5.2): the request comes from an
+        # unauthenticated code holder. It is read when our administrator approves (approve()).
+        conn.remote_endpoints = {'_discovery_url': claims.get('discovery_url', '')}
         my = self._new_key(conn)
         conn.sas = pairing.short_authentication_string(pairing.transcript_hash(
             request_jws=token, request_jti=claims['jti'], initiator_installation=claims['iss'],
@@ -283,13 +329,71 @@ class ReferencePeer:
                                 now=self.now())
         return self._json(202, {'status': 'pending_approval', 'request_id': conn.request_id, 'ack': ack})
 
+    # --- approval (one administrator; two for elevated scopes) ---------------------------------------
+    def _admin(self, admin: Optional[AdminAuth]) -> AdminAuth:
+        return admin if admin is not None else AdminAuth('admin', self.now())
+
+    def _fingerprint(self, conn: PeerConnection, scopes, tenant_grants) -> str:
+        return grant_fingerprint(connection_id=conn.id, remote_installation=conn.remote_installation,
+                                 remote_key_thumbprints=sorted(conn.remote_keys), inbound_scopes=scopes,
+                                 tenant_grants=tenant_grants)
+
+    def _ensure_remote_discovery(self, conn: PeerConnection) -> None:
+        """Responder side of the v1 code flow: read the initiator's discovery on an administrator action."""
+        url = conn.remote_endpoints.get('_discovery_url')
+        if url is None:
+            return
+        info = discovery.fetch(self.network, url)
+        if info.installation_id != conn.remote_installation:
+            raise ConnectError(INVALID_REQUEST, 'initiator discovery identity mismatch')
+        conn.remote_endpoints = info.endpoints
+
     def approve(self, request_id: str, *, scopes: List[str], tenant_grants: List[dict],
-                requested_scopes: List[str] = (), reject: bool = False):
-        """tenant_grants: [{'remote_tenant': initiator tenant id, 'local_tenant': ours, 'scopes': [...]}]"""
+                requested_scopes: List[str] = (), reject: bool = False, admin: Optional[AdminAuth] = None):
+        """tenant_grants: [{'remote_tenant': initiator tenant id, 'local_tenant': ours, 'scopes': [...]}].
+        With a high_risk or admin scope the connection waits in awaiting_second_approval until a different
+        administrator calls second_approve(); the peer sees `pending` until then."""
         conn = self.connections[self.requests[request_id]]
+        if reject:
+            return self._finish_responder(conn, [], [], requested_scopes, reject=True)
+        if self.kill_switch:
+            raise ConnectError(KILL_SWITCH, 'approvals are blocked while the kill switch is engaged', 503)
+        _, elevated = self.elevated.classify(scopes)          # unknown / unavailable scopes refused
         require_subset(scopes, conn.peer_requested_scopes)
+        for g in tenant_grants:
+            require_subset(g['scopes'], scopes)
+        self._ensure_remote_discovery(conn)
+        return self._decide(conn, scopes, tenant_grants, requested_scopes, elevated, admin, self._finish_responder)
+
+    def second_approve(self, request_id: str, *, admin: AdminAuth):
+        return self._second(self.connections[self.requests[request_id]], admin)
+
+    def _decide(self, conn, scopes, tenant_grants, requested_scopes, elevated, admin, finish):
+        if not elevated:
+            return finish(conn, scopes, tenant_grants, requested_scopes)
+        fp = self._fingerprint(conn, scopes, tenant_grants)
+        pid = self.elevated.propose(connection_id=conn.id, fingerprint=fp, scopes=scopes,
+                                    proposer=self._admin(admin))
+        conn.pending = {'proposal': pid, 'scopes': sorted(set(scopes)), 'tenant_grants': list(tenant_grants),
+                        'requested_scopes': list(requested_scopes), 'finish': finish}
+        conn.state = 'awaiting_second_approval'
+        return conn
+
+    def _second(self, conn: PeerConnection, admin: AdminAuth):
+        pend = conn.pending
+        if conn.state != 'awaiting_second_approval' or not pend:
+            raise ConnectError('not_found', 'nothing waits for a second approval', 404)
+        fp = self._fingerprint(conn, pend['scopes'], pend['tenant_grants'])
+        self.elevated.approve(pend['proposal'], approver=admin, current_fingerprint=fp)
+        conn.pending = {}
+        conn.fingerprint = fp
+        return pend['finish'](conn, pend['scopes'], pend['tenant_grants'], pend['requested_scopes'])
+
+    def _finish_responder(self, conn, scopes, tenant_grants, requested_scopes, reject=False):
         conn.inbound_scopes = sorted(set(scopes))
         conn.state = 'revoked' if reject else 'active'
+        if not conn.fingerprint:
+            conn.fingerprint = self._fingerprint(conn, conn.inbound_scopes, tenant_grants)
         grants_out = []
         for g in tenant_grants:
             self.grants.add(TenantGrant(conn.id, g['remote_tenant'], g['local_tenant'],
@@ -299,17 +403,38 @@ class ReferencePeer:
         _, my = conn.active_key()
         conn.result = {'jws': pairing.build_result(
             my, responder_installation=self.installation_id, initiator_installation=conn.remote_installation,
-            request_id=request_id, request_jti=conn.request_jti, status='rejected' if reject else 'approved',
+            request_id=conn.request_id, request_jti=conn.request_jti, status='rejected' if reject else 'approved',
             connection_id=conn.id, granted_scopes=conn.inbound_scopes, tenant_grants=grants_out,
             requested_scopes=requested_scopes, endpoints=self.endpoints(), now=self.now())}
         conn.outbound_scopes = sorted(set(requested_scopes))  # granted only once the initiator approves
         return conn
 
+    def revoke_elevated(self, conn_id: str):
+        """Withdraw every elevated scope of a connection at once (tokens issued earlier are refused)."""
+        conn = self.connections[conn_id]
+        self.elevated.revoke(conn_id)
+        conn.inbound_scopes = [s for s in conn.inbound_scopes if not self.elevated.catalog.get(s)
+                               or not self.elevated.catalog.get(s).elevated]
+        for g in self.grants.grants.values():
+            if g.connection_id == conn_id:
+                g.scopes = tuple(x for x in g.scopes if x in conn.inbound_scopes)
+        conn.tokens_not_before = self.now() + 1
+        return conn
+
+    def set_kill_switch(self, engaged: bool):
+        """Engaging suspends every active connection; releasing resumes nothing."""
+        self.kill_switch = bool(engaged)
+        if engaged:
+            for c in self.connections.values():
+                if c.state == 'active':
+                    c.state = 'suspended'
+                    c.tokens_not_before = self.now() + 1
+
     def _pairing_status(self, request_id, data) -> Response:
         conn = self.connections.get(self.requests.get(request_id, ''))
         if conn is None:
             raise ConnectError('not_found', 'unknown pairing request', 404)
-        (_, key), = conn.remote_keys.items()
+        key = conn.request_key or next(iter(conn.remote_keys.values()))
         pairing.verify_poll(data.get('proof'), key, initiator_installation=conn.remote_installation,
                             responder_installation=self.installation_id, request_id=request_id,
                             replay=self.replay, now=self.now())
@@ -320,46 +445,78 @@ class ReferencePeer:
     def _token(self, headers, body) -> Response:
         from urllib.parse import parse_qs
         form = {k: v[0] for k, v in parse_qs(body.decode('ascii', 'replace')).items()}
+        src = self._source()
         try:
             if form.get('grant_type') != 'client_credentials' or \
                     form.get('client_assertion_type') != tokens.CLIENT_ASSERTION_TYPE:
                 raise ConnectError('unsupported_grant_type', 'client_credentials with private_key_jwt only')
-            conn = self.connections.get(form.get('client_id', ''))
-            if conn is None:
-                raise ConnectError(INVALID_CLIENT, 'unknown client', 401)
-            if conn.state != 'active':
-                raise ConnectError(INVALID_CLIENT, 'connection is not active', 401)
+            client_id = form.get('client_id', '')
+            self.limits.ensure_below('token.failure', client_id, src)
+            conn = self.connections.get(client_id)
+            if conn is None or conn.state != 'active':
+                # The same answer for unknown and inactive connections: ids are not probeable.
+                raise ConnectError(INVALID_CLIENT, 'invalid client', 401)
             endpoint = self.url(f'{API}/token')
 
             def key_for(kid):
-                if kid not in conn.remote_keys:
-                    self._refresh_remote_keys(conn)
+                self._fresh_remote_keys(conn, kid)
                 return conn.remote_keys.get(kid)
-            claims, kid = tokens.verify_client_assertion(form.get('client_assertion', ''), key_for,
-                                                         client_id=conn.id, token_endpoint=endpoint,
-                                                         replay=self.replay, now=self.now())
-            jkt, _ = tokens.verify_dpop_proof(headers.get('DPoP', ''), method='POST', url=endpoint,
-                                              replay=self.replay, now=self.now(), allowed_jkts=[kid])
-            requested = parse_scope_string(form.get('scope', '')) or list(conn.inbound_scopes)
-            granted = require_subset(requested, conn.inbound_scopes)
+            try:
+                claims, kid = tokens.verify_client_assertion(form.get('client_assertion', ''), key_for,
+                                                             client_id=conn.id, token_endpoint=endpoint,
+                                                             replay=self.replay, now=self.now())
+                jkt, _ = tokens.verify_dpop_proof(headers.get('DPoP', ''), method='POST', url=endpoint,
+                                                  replay=self.replay, now=self.now(), allowed_jkts=[kid])
+            except ConnectError:
+                self.limits.hit('token.failure', client_id, src)
+                raise
+            self.limits.check('token.connection', conn.id)
+            usable = self.elevated.authorized_scopes(conn.id, conn.fingerprint, conn.inbound_scopes)
+            requested = parse_scope_string(form.get('scope', '')) or list(usable)
+            granted = require_subset(requested, usable)
             _, my = conn.active_key()
             at, _ = tokens.issue_access_token(my, issuer=self.installation_id, client_id=conn.id, scopes=granted,
                                               jkt=jkt, now=self.now())
             return self._json(200, {'access_token': at, 'token_type': 'DPoP', 'expires_in': 300,
                                     'scope': ' '.join(granted)}, {'Cache-Control': 'no-store'})
         except ConnectError as e:
+            h = {'Retry-After': str(getattr(e, 'retry_after', 60))} if e.status == 429 else {}
             return self._json(e.status if e.status != 403 else 400,
-                              {'error': e.code, 'error_description': e.message})
+                              {'error': e.code, 'error_description': e.message}, h)
+
+    def _fresh_remote_keys(self, conn: PeerConnection, kid: str = '') -> None:
+        """Refetch the peer's endorsed JWKS when a kid is unknown or the ring's endorsement has expired,
+        at most once a minute per connection. The ring is REPLACED (a key the owner retired disappears)."""
+        if (kid and kid not in conn.remote_keys) or self.now() >= conn.remote_keys_expire_at:
+            if self.now() - conn.remote_keys_fetched_at >= 60:
+                self._refresh_remote_keys(conn)
 
     def _refresh_remote_keys(self, conn: PeerConnection):
+        conn.remote_keys_fetched_at = self.now()
         url = conn.remote_endpoints['jwks'].replace('{connection_id}', conn.remote_connection_id)
-        r = self.network.request('GET', url)
+        try:
+            r = self.network.request('GET', url)
+        except ConnectError:
+            return
         if r.status == 200:
-            ring = keys.verify_endorsed_jwks(json.loads(r.body), conn.remote_keys, conn.remote_installation,
+            doc = json.loads(r.body)
+            ring = keys.verify_endorsed_jwks(doc, conn.remote_keys, conn.remote_installation,
                                              conn.remote_connection_id, now=self.now())
-            conn.remote_keys.update(ring)
+            conn.remote_keys = dict(ring)
+            from .jws import unverified_payload
+            conn.remote_keys_expire_at = int(unverified_payload(doc['endorsement'])['exp'])
 
     def _authenticate(self, method, url, headers):
+        src = self._source()
+        self.limits.ensure_below('auth.failure.address', src)
+        try:
+            return self._authenticate_inner(method, url, headers)
+        except ConnectError as e:
+            if e.status == 401:
+                self.limits.hit('auth.failure.address', src)
+            raise
+
+    def _authenticate_inner(self, method, url, headers):
         def keys_for(client_id):
             c = self.connections.get(client_id)
             return c.verifying_keys() if c and c.state == 'active' else {}
@@ -369,7 +526,10 @@ class ReferencePeer:
         conn = self.connections[client_id]
         if claims['iat'] < conn.tokens_not_before:
             raise ConnectError('invalid_token', 'token issued before the connection was re-keyed', 401)
-        scopes = sorted(set(claims['scopes']) & set(conn.inbound_scopes))
+        self.limits.check('api.connection', conn.id)
+        # Re-checked on every use: a revoked elevated approval takes effect at once.
+        live = self.elevated.authorized_scopes(conn.id, conn.fingerprint, conn.inbound_scopes)
+        scopes = sorted(set(claims['scopes']) & set(live))
         return conn, scopes
 
     def _resource(self, method, url, path, headers) -> Response:
@@ -383,25 +543,71 @@ class ReferencePeer:
         grant = authorize(self.grants, conn.id, headers.get('Agit8or-Tenant', ''), 'customers:read', scopes)
         return self._json(200, {'tenant': grant.remote_tenant_id, 'name': self.tenants.get(grant.local_tenant)})
 
+    def _allowed_event_types(self, conn: PeerConnection) -> set:
+        allowed = set(webhooks.CONNECTION_EVENTS)
+        for name in conn.inbound_scopes:
+            sc = self.catalog.get(name)
+            if sc is not None:
+                allowed.update(sc.events)
+        return allowed
+
     def _events(self, headers, body) -> Response:
-        conn = self.connections.get(headers.get(webhooks.H_CONNECTION, ''))
+        cid = webhooks._h(headers, webhooks.H_CONNECTION)
+        src = self._source()
+        self.limits.ensure_below('signature.invalid', cid, src)
+        conn = self.connections.get(cid)
         if conn is None or conn.state != 'active':
+            self.limits.hit('signature.invalid', cid, src)
             raise ConnectError('invalid_signature', 'unknown connection', 401)
-        eid, _ = webhooks.verify(headers, body, conn.remote_keys, sender=conn.remote_installation,
-                                 receiver=self.installation_id, connection_id=conn.id, now=self.now())
+        self._fresh_remote_keys(conn, webhooks._h(headers, webhooks.H_KEY_ID))
+        try:
+            eid, _ = webhooks.verify(headers, body, conn.remote_keys, sender=conn.remote_installation,
+                                     receiver=self.installation_id, connection_id=conn.id, now=self.now())
+        except ConnectError:
+            self.limits.hit('signature.invalid', cid, src)
+            raise
         env = webhooks.validate_envelope(json.loads(body), event_id=eid, sender=conn.remote_installation,
                                          receiver=self.installation_id)
+        # Authorise BEFORE recording the id, so a refused event does not consume it.
+        if env['type'] not in self._allowed_event_types(conn):
+            raise ConnectError('event_type_not_allowed', f'event type {env["type"]} is not allowed', 403)
+        if not webhooks.is_connection_event(env):
+            authorize(self.grants, conn.id, env.get('tenant', ''), 'events:publish', conn.inbound_scopes)
         if not self.replay.add('event', f'{conn.id}:{eid}', self.now() + 7 * 86400):
             return self._json(200, {'status': 'duplicate', 'id': eid})
         if env['loop']:
             return self._json(200, {'status': 'ignored_loop', 'id': eid})
-        if webhooks.is_connection_event(env):
-            if env['type'] == 'connect.connection.revoked':
-                conn.state = 'revoked'
-        else:
-            authorize(self.grants, conn.id, env.get('tenant', ''), 'events:publish', conn.inbound_scopes)
+        if webhooks.is_connection_event(env) and env['type'] == 'connect.connection.revoked':
+            conn.state = 'revoked'
         conn.received_events.append(env)
         return self._json(200, {'status': 'accepted', 'id': eid})
+
+    # --- per-action approval (action-approval/1) ------------------------------------------------------
+    def _remote_action(self, method, url, headers, body) -> Response:
+        conn, scopes = self._authenticate(method, url, headers)
+        tenant = headers.get('Agit8or-Tenant', '')
+        grant = authorize(self.grants, conn.id, tenant, 'remote_actions:execute', scopes)
+        data = json.loads(body or b'{}')
+        if not isinstance(data, dict) or not isinstance(data.get('target'), str) or \
+                not isinstance(data.get('action'), str):
+            raise ConnectError(INVALID_REQUEST, 'target and action are required')
+        params = data.get('params', {})
+        approval = headers.get(ACTION_APPROVAL_HEADER, '')
+        if not approval:
+            req = self.actions.request(connection_id=conn.id, tenant=tenant, target=data['target'],
+                                       action_type=data['action'], params=params,
+                                       operator=f'connection:{conn.id}', required_scope='remote_actions:execute')
+            e = ConnectError('action_approval_required', 'an administrator of this installation must approve '
+                                                         'this action', 403)
+            e.approval_id = req.id
+            raise e
+        self.actions.consume(approval, connection_id=conn.id, tenant=tenant, target=data['target'],
+                             action_type=data['action'], params=params)
+        # A real host would now perform the action for grant.local_tenant; the reference only records it.
+        return self._json(200, {'status': 'accepted', 'approval_id': approval, 'tenant': grant.remote_tenant_id})
+
+    def decide_action(self, approval_id: str, *, approve: bool, admin: AdminAuth):
+        self.actions.decide(approval_id, approve=approve, admin=admin)
 
     # --- client side ----------------------------------------------------------------
     def start_pairing(self, base_url: str, code: str, *, requested_scopes: List[str],
@@ -463,9 +669,24 @@ class ReferencePeer:
         conn.state = 'awaiting_local_approval'
         return 'approved'
 
-    def accept(self, conn_id: str, *, scopes: List[str] = (), tenant_grants: List[dict] = ()):
+    def accept(self, conn_id: str, *, scopes: List[str] = (), tenant_grants: List[dict] = (),
+               admin: Optional[AdminAuth] = None):
         conn = self.connections[conn_id]
-        conn.inbound_scopes = require_subset(scopes, conn.peer_requested_scopes)
+        if self.kill_switch:
+            raise ConnectError(KILL_SWITCH, 'approvals are blocked while the kill switch is engaged', 503)
+        _, elevated = self.elevated.classify(scopes)
+        require_subset(scopes, conn.peer_requested_scopes)
+        for g in tenant_grants:
+            require_subset(g['scopes'], scopes)
+        return self._decide(conn, scopes, tenant_grants, (), elevated, admin, self._finish_initiator)
+
+    def second_accept(self, conn_id: str, *, admin: AdminAuth):
+        return self._second(self.connections[conn_id], admin)
+
+    def _finish_initiator(self, conn, scopes, tenant_grants, _requested=()):
+        conn.inbound_scopes = sorted(set(scopes))
+        if not conn.fingerprint:
+            conn.fingerprint = self._fingerprint(conn, conn.inbound_scopes, tenant_grants)
         for g in tenant_grants:
             self.grants.add(TenantGrant(conn.id, g['remote_tenant'], g['local_tenant'],
                                         tuple(require_subset(g['scopes'], conn.inbound_scopes))))
@@ -474,6 +695,7 @@ class ReferencePeer:
 
     def get_token(self, conn_id: str, scopes: List[str] = (), key=None) -> dict:
         conn = self.connections[conn_id]
+        self.retire_due(conn_id)
         if key is None:
             _, key = conn.active_key()
         endpoint = conn.remote_endpoints['token']
@@ -534,12 +756,25 @@ class ReferencePeer:
         conn.keys[old_kid]['retire_after'] = self.now() + overlap
         return True
 
+    def retire_due(self, conn_id: str) -> List[str]:
+        """Retiring keys whose overlap ended become retired; their private halves are wiped."""
+        conn = self.connections[conn_id]
+        infos = [rotation.KeyInfo(kid, k['state'], k.get('activated_at'), k.get('retire_after'))
+                 for kid, k in conn.keys.items()]
+        done = rotation.to_retire(infos, self.now())
+        for kid in done:
+            conn.keys[kid]['state'] = rotation.transition(rotation.RETIRING, 'overlap_over')
+            conn.keys[kid]['private'] = None
+        return done
+
     def revoke(self, conn_id: str):
         conn = self.connections[conn_id]
         conn.state = 'revoked'
         conn.tokens_not_before = self.now() + 1
         for k in conn.keys.values():
             k['state'] = rotation.RETIRED
+            k['private'] = None
+        self.elevated.revoke(conn_id)
         for g in self.grants.grants.values():
             if g.connection_id == conn_id:
                 g.active = False

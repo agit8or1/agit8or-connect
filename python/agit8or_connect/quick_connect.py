@@ -219,6 +219,8 @@ def source_in_egress(source: str, entries) -> bool:
         addr = ipaddress.ip_address(source)
     except (ValueError, TypeError):
         return False
+    if addr.version == 6 and addr.ipv4_mapped is not None:   # dual-stack servers report ::ffff:a.b.c.d (F-18)
+        addr = addr.ipv4_mapped
     return any(addr in ipaddress.ip_network(e['net']) for e in entries)
 
 
