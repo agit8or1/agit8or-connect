@@ -5,6 +5,11 @@ Protocol versions and SDK versions are explained in the README's versioning poli
 
 ## [Unreleased]
 
+### Added
+
+- `docs/SECURITY_AND_READINESS_AUDIT.md`: repository audit of 1.1.0 (findings F-01 … F-25 with severities,
+  documented-versus-implemented differences, test gaps). Self-review, not an independent audit.
+
 ## [1.1.0] - 2026-11-21
 
 First public release of the standard repository. Draft; not independently security-reviewed.
