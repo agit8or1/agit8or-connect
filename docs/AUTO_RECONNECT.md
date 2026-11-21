@@ -6,6 +6,11 @@ installation retries by itself and when it must stop and ask an administrator**.
 The principle: **availability failures retry; security failures block.** A connection never "fixes" a changed
 address, certificate, identity or key on its own.
 
+Reference implementation (Python): `lifecycle.classify_failure`, `lifecycle.ReconnectPolicy` / `Circuit` (ladder,
+CSPRNG jitter, open / half-open, permanent block on a security failure) and `storage.SqlEventQueue` (durable
+outbox with leases, creation-order drain, unreached attempts not counted, dead letter, requeue with the original
+id, cancel without delete). The scheduler loop of §3 is left to the host.
+
 ## 1. Security failures never reconnect
 
 These move `active` → `security_blocked` immediately, keep their evidence, and never retry by themselves:

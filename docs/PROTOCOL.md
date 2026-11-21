@@ -466,6 +466,26 @@ hash_n = sha256_hex(canonical({"prev": hash_{n-1}, "record": record_n}))     has
 Hosts SHOULD keep the table append-only and offer a verify command that recomputes the chain and reports the
 first changed, missing or reordered entry. Vectors: `test-vectors/audit-chain.json`.
 
+### 14.1 Checkpoints, exports and redaction (local; recommended)
+
+The chain alone detects a change only by someone holding a later hash. To anchor it:
+
+- **Checkpoint:** a JWS (`typ: audit-checkpoint+jwt`, EdDSA) by an installation audit key over
+  `{iss, seq, hash, iat}` — the head of the chain at `seq`. Hosts SHOULD create one periodically (for example
+  hourly and at every kill-switch or approval event) and publish it somewhere the database writer cannot change
+  (another system, the peer installation, a ticket, a printed report). The audit key SHOULD NOT be readable by the
+  web process that writes the table.
+- **Export:** `{format: "agit8or-connect-audit-export/1", issuer, start_seq, start_prev, entries, checkpoint}`.
+  A verifier checks contiguous `seq`, every hash, that the last entry equals the signed checkpoint, and that every
+  checkpoint it already knows inside the range matches. A rewritten history fails the last check even if the
+  attacker also holds the audit key. Error: `audit_invalid`.
+- **Redaction:** records pass through a redactor before they are hashed: values under secret-looking keys and
+  strings that look like a JWS, PEM block, long base64/hex blob or pairing code become `redacted:<sha256 prefix>`;
+  strings are capped at 256 characters.
+
+Reference: `audit.sign_checkpoint`, `audit.verify_export`, `audit.redact`, `storage.SqlAuditLog` (Python);
+`verifyCheckpoint`, `verifyAuditExport` (TypeScript). Vectors: `test-vectors/audit-checkpoint.json`.
+
 ## 15. Transitional profiles
 
 An application that already has its own pairing or request-signing contract with a peer MAY keep it running
@@ -505,10 +525,42 @@ grants), and compromise of the host's master key.
 
 ## 17. Later phases (design notes, not implemented)
 
-- **Delegated-user profile.** Actor claims (`act: {sub: "user-<id>"}`) in access tokens for calls made on behalf
-  of a person. (Per-action approval is now §7.4.) More scopes (`assets:read`, `tickets:*`, …)
+- **Delegated-user profile.** Actor claims are now `actor/1` (§18.2) and per-action approval §7.4. More scopes (`assets:read`, `tickets:*`, …)
   become available, with events for action-proposal status, remote-session confirmation and ticket state.
 - **More applications:** catalogs and event types per application, plus event forwarding with `origin`/`hops`.
-- **Operations:** inbound mTLS, signed exports of the audit chain, connection health
+- **Operations:** inbound mTLS, connection health
   dashboards and alerting on repeated authentication failures (see [CONNECTION_HEALTH.md](CONNECTION_HEALTH.md)
   for what revision 1.1 hosts do today).
+
+## 18. Negotiated extensions after revision 1.1
+
+Each extension below is advertised in the discovery document's `extensions` object (`{"name": version}`, the
+1.1 form) and used on a connection only when **both** installations advertised it when they paired; each side
+stores the negotiated set with the connection. A 1.0 or 1.1 peer advertises none of them, so it never sees a new
+requirement. Reference: `python/agit8or_connect/extensions.py`, `typescript/src/extensions.ts`; vectors:
+`test-vectors/extensions.json`.
+
+### 18.1 `dpop-nonce/1` — server-provided DPoP nonces (RFC 9449 §8)
+
+- On a negotiated connection the token endpoint and the resource endpoints require a `nonce` claim in the DPoP
+  proof. A missing or stale nonce is answered `401` with error `use_dpop_nonce` (OAuth form at the token endpoint,
+  `WWW-Authenticate: DPoP error="use_dpop_nonce"` on resources) and a `DPoP-Nonce` response header; the client
+  retries **once** with that nonce and keeps the latest nonce it was sent.
+- Reference nonces are stateless: `base64url(uint64 window || HMAC-SHA256(secret, "dpop-nonce/1\n" || context ||
+  "\n" || uint64 window)[:16])`, 300 s windows, current and previous window valid; `context` is `token:<connection>`
+  or `api:<connection>`. All workers share the secret. Single use still comes from the proof `jti`.
+- The nonce is checked before the proof's `jti` is recorded, so a challenged proof does not consume an id.
+
+### 18.2 `actor/1` — delegated-user calls
+
+- The token request MAY carry `actor=<opaque id>` (1–128 characters `[A-Za-z0-9._:-]`; pseudonymous: no e-mail
+  addresses or names). The issued token then carries `act: {"sub": "<id>"}`. Nested delegation is not supported.
+- An `actor` on a connection that did not negotiate `actor/1` is refused (`invalid_request` at the token
+  endpoint, `invalid_token` for a token that carries `act`); it is never dropped silently.
+- The receiver records the actor in its audit entries and uses `actor:<connection>:<id>` as the operator of
+  per-action approvals (§7.4). Scopes are unchanged: an actor token is never broader than the connection's.
+
+### 18.3 `action-approval/1`
+
+Advertises that this installation may answer `action_approval_required` (§7.4). Peers that did not negotiate it
+can still receive the error; the extension lets a caller's UI explain it in advance.
