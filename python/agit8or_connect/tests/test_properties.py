@@ -91,5 +91,45 @@ if given is not None:
             self.assertLessEqual(len([x for x in allowed if x < allowed[0] + 1e-9 + 0]), limit)
 
 
+if given is not None:
+    token_like = st.one_of(st.text(max_size=300), st.lists(st.text(alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_', max_size=80), min_size=1, max_size=5).map('.'.join))
+
+    @unittest.skipIf(given is None, 'hypothesis not installed')
+    class ParserFuzz(unittest.TestCase):
+        """Untrusted inputs: parsers and verifiers fail with ConnectError, never another exception."""
+
+        @settings(max_examples=400, deadline=None)
+        @given(token_like)
+        def test_token_verifiers_only_raise_connect_errors(self, t):
+            from agit8or_connect import jws, keys, tokens
+            from agit8or_connect.replay import MemoryReplayStore
+            k = keys.generate_private_key()
+            for fn in (lambda: jws.unverified_header(t), lambda: jws.unverified_payload(t),
+                       lambda: tokens.verify_access_token(t, {keys.thumbprint(k): k.public_key()}, issuer='i'),
+                       lambda: tokens.verify_dpop_proof(t, method='GET', url='https://x.example.test/',
+                                                        replay=MemoryReplayStore()),
+                       lambda: tokens.verify_client_assertion(t, lambda kid: k.public_key(), client_id='c',
+                                                              token_endpoint='https://x.example.test/t',
+                                                              replay=MemoryReplayStore())):
+                try:
+                    fn()
+                except ConnectError:
+                    pass
+
+        @settings(max_examples=300, deadline=None)
+        @given(st.dictionaries(st.text(max_size=20), st.text(max_size=40), max_size=6))
+        def test_proxy_and_source_inputs(self, headers):
+            from agit8or_connect.proxy import TrustedProxyResolver
+            from agit8or_connect.sources import SourcePolicy, SourceRule
+            r = TrustedProxyResolver(['10.0.0.0/24'])
+            p = SourcePolicy(1, [SourceRule('203.0.113.0/24', layer='installation')])
+            for peer in ('10.0.0.5', '203.0.113.7'):
+                try:
+                    src = r.resolve(peer, headers)
+                    p.evaluate(src, route='token', connection_id='c')
+                except ConnectError:
+                    pass
+
+
 if __name__ == '__main__':
     unittest.main()

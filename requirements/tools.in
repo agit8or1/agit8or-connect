@@ -1,0 +1,6 @@
+# Security and validation tooling used by .github/workflows/security.yml.
+#   uv pip compile --universal --python-version 3.12 --generate-hashes requirements/tools.in -o requirements/tools.txt
+pip-audit>=2.7
+openapi-spec-validator>=0.7
+cyclonedx-bom>=4.4
+build>=1.2

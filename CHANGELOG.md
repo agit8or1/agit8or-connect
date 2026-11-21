@@ -45,6 +45,14 @@ Protocol versions and SDK versions are explained in the README's versioning poli
   processes each over HTTPS on 127.0.0.1, persistent state with encrypted keys, a restart, a DNS change that
   security-blocks, the kill switch, and the TypeScript SDK as a second caller (`typescript/test/harness_client.ts`).
 - `docs/PRODUCTION_DEPLOYMENT.md`.
+- P2: security CI (`.github/workflows/security.yml`: CodeQL, secret scanning, pip-audit, dependency review,
+  OpenAPI validation, schema / vector compatibility, SBOM), hash-locked `requirements/*.txt` used by all CI jobs,
+  Dependabot, a release workflow that only drafts a release from an owner-pushed tag, `tools/check_schema_compat.py`,
+  property-based fuzz tests for token verifiers and proxy / source inputs.
+- P2 docs: `QUICK_CONNECT_UI.md` (screens and workflow contract), `SECURITY_ARCHITECTURE.md`,
+  `INTEGRATION_CHECKLIST.md`, `COMPATIBILITY_MATRIX.md`, `PRODUCTION_READINESS.md` (feature status, evidence,
+  roadmap); CLAUDE_INTEGRATION_GUIDE shared-state rules.
+- Reference peer serves `GET /connect/v1/customers` (audit D-9).
 
 ### Changed
 

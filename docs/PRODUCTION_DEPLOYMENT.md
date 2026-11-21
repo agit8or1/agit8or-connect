@@ -2,7 +2,7 @@
 
 How to run a host application that implements Agit8or Connect with the reference SDKs. This is guidance for
 hosts; the SDKs are libraries, not a server. What is and is not proven by tests is listed in
-[SECURITY_AND_READINESS_AUDIT.md](SECURITY_AND_READINESS_AUDIT.md).
+[PRODUCTION_READINESS.md](PRODUCTION_READINESS.md); the design in [SECURITY_ARCHITECTURE.md](SECURITY_ARCHITECTURE.md).
 
 ## 1. Components a production host needs
 
@@ -140,3 +140,10 @@ Recommendations only; this repository does not change its own settings:
 - Protect `main`: require pull requests, the CI checks (`test (3.10)`, `test (3.12)`, `postgres`, and the security
   workflow), and linear history; disallow force-pushes.
 - Require signed tags for releases; enable private vulnerability reporting and Dependabot security updates.
+- Enable the dependency graph, then set the repository variable `DEPENDENCY_REVIEW=true` to turn on the
+  dependency-review job of the security workflow.
+- Code scanning: the guarded transports (`transport.py`, `transport.ts`) send requests to peer-supplied URLs by
+  design, after the approved-destination checks; CodeQL's request-forgery queries flag them. Review and dismiss
+  those alerts as "won't fix / by design" rather than excluding the queries. The same applies to the
+  permissions alert in `test_security_regressions.test_key_file_permissions`, which makes a key file
+  group-readable on purpose to prove it is refused.

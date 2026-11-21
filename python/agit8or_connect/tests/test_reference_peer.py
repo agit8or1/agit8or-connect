@@ -94,6 +94,15 @@ class TenantIsolation(unittest.TestCase):
             r = a.call(conn.id, 'GET', b.url(f'{API}/customers/current'), tenant=t)
             self.assertEqual(r.status, 403, t)
 
+    def test_customer_list_shows_only_this_connections_grants(self):
+        a, b, conn_a, bconn_a, net, clock = paired()
+        c, _, conn_c, *_ = paired(net=net, clock=clock, initiator_url='https://msp-c.example.test',
+                                  responder=b, tenant='org-9', local_tenant='cust-2')
+        ra = json.loads(a.call(conn_a.id, 'GET', b.url(f'{API}/customers')).body)
+        rc = json.loads(c.call(conn_c.id, 'GET', b.url(f'{API}/customers')).body)
+        self.assertEqual([(t['tenant'], t['name']) for t in ra['tenants']], [('org-1', 'Customer One')])
+        self.assertEqual([(t['tenant'], t['name']) for t in rc['tenants']], [('org-9', 'Customer Two')])
+
     def test_two_msps_on_one_responder(self):
         """Two installations (two MSPs) both use tenant id 'org-1'; each only
         ever reaches the customer its own connection was granted."""

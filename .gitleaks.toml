@@ -1,0 +1,12 @@
+# Secret scanning configuration. The paths below hold PUBLISHED TEST-ONLY keys on purpose (conformance vectors
+# and 127.0.0.1 TLS fixtures); everything else is scanned with the default rules.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "published test-only key material"
+paths = [
+  '''^test-vectors/''',
+  '''^typescript/test/fixtures/tls/''',
+  '''^conformance/VECTORS\.sha256$''',
+]
