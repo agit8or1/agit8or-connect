@@ -140,3 +140,8 @@ Recommendations only; this repository does not change its own settings:
 - Protect `main`: require pull requests, the CI checks (`test (3.10)`, `test (3.12)`, `postgres`, and the security
   workflow), and linear history; disallow force-pushes.
 - Require signed tags for releases; enable private vulnerability reporting and Dependabot security updates.
+- Enable the dependency graph, then set the repository variable `DEPENDENCY_REVIEW=true` to turn on the
+  dependency-review job of the security workflow.
+- Code scanning: the guarded transports (`transport.py`, `transport.ts`) send requests to peer-supplied URLs by
+  design, after the approved-destination checks; CodeQL's request-forgery queries flag them. Review and dismiss
+  those alerts as "used in tests / by design" rather than excluding the queries.

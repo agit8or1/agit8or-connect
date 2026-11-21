@@ -328,7 +328,7 @@ class KeyProtection(unittest.TestCase):
         path = os.path.join(d, 'keys.json')
         with open(path, 'w') as f:
             json.dump({'current': 'k', 'keys': {'k': generate_master_key()}}, f)
-        os.chmod(path, 0o644)
+        os.chmod(path, 0o640)    # any group or other bit is refused; group-read is enough to prove it
         with self.assertRaises(ConnectError) as e:
             FileMasterKeys(path)
         self.assertEqual(e.exception.code, 'key_unavailable')
