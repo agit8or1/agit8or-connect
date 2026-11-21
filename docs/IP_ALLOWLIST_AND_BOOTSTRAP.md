@@ -45,6 +45,15 @@ Each layer is an allowlist (empty = deny all) plus explicit denies (deny wins). 
 
 A valid token never skips steps 1–7. There is no exception for discovery, health or pairing.
 
+Reference implementation (Python): step 1 is `proxy.TrustedProxyResolver` (headers are read only when the TCP
+peer is a configured proxy, right to left, anything malformed refuses); steps 2–7 and 11 are
+`sources.SourcePolicy.evaluate` and `sources.check_binding`, loaded through the fail-closed `sources.PolicyCache`
+from `storage.SqlSourcePolicyStore` (versioned, integrity digest, compare-and-set). Changes are previewed with
+`sources.preview_change` (connections locked out by their observed sources, newly admitted networks, whether a
+second administrator is required) and rollbacks checked with `sources.check_rollback`. TypeScript has the proxy
+resolver; the source-policy engine is Python-only so far. Proxy configuration examples:
+[PRODUCTION_DEPLOYMENT.md](PRODUCTION_DEPLOYMENT.md).
+
 ### 1.4 Which connection a request names (before authentication)
 
 | Route | Named by | Rules consulted at the connection layer |

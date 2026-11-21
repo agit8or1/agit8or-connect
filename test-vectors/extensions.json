@@ -1,0 +1,38 @@
+{
+  "actor": {
+    "access_token": "eyJhbGciOiJFZERTQSIsImtpZCI6InQwUDJ0VFJ3aDVyNG84WG1PaXRsY2M0NEdwdm52Yi1KTXlZRDIyNk1qNEEiLCJ0eXAiOiJhdCtqd3QifQ.eyJhY3QiOnsic3ViIjoidXNlcjo0MiJ9LCJhdWQiOiI2YzBkMmE5ZS00YjFmLTRjM2EtOWUyZC03ZjVhMWIzYzlkMDIiLCJjbGllbnRfaWQiOiIwZjhlN2Q2Yy01YjRhLTQzOTItOGExYi0wYzlkOGU3ZjZhNTEiLCJjbmYiOnsiamt0IjoiRHlVaXFKM1FXU0ttOWIzemMyZWttXzZodlVhbkxMaC11SWJjQW9IWHFwRSJ9LCJleHAiOjE3NjcyMjU5MDAsImlhdCI6MTc2NzIyNTYwMCwiaXNzIjoiNmMwZDJhOWUtNGIxZi00YzNhLTllMmQtN2Y1YTFiM2M5ZDAyIiwianRpIjoiZXh0LXZlY3Rvci1hdC0xIiwibmJmIjoxNzY3MjI1NjAwLCJzY29wZSI6ImNvbm5lY3Rpb246cmVhZCIsInN1YiI6IjBmOGU3ZDZjLTViNGEtNDM5Mi04YTFiLTBjOWQ4ZTdmNmE1MSJ9.rHbPK1xZOXeM3IJY0v_z3skzwPCH8LD4lUFmVE3UYx-LZVm5dBlMYHdhyjxiEFqCil3PHJphE6b2-Q0WaZSmDg",
+    "actor": "user:42",
+    "invalid_actors": [
+      "",
+      "alice@example.test",
+      "a b",
+      "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    ],
+    "issuer": "6c0d2a9e-4b1f-4c3a-9e2d-7f5a1b3c9d02",
+    "now": 1767225600
+  },
+  "description": "dpop-nonce/1: nonce = base64url(uint64 window index || HMAC-SHA256(secret, \"dpop-nonce/1\\n\" || context || \"\\n\" || uint64 index)[:16]), window 300 s, current and previous window valid. actor/1: access token claim act = {\"sub\": opaque id}.",
+  "dpop_nonce": {
+    "context": "token:conn-vector-1",
+    "nonce": "AAAAAABZ4sABBUT2hKogHn_ZQen1Q9-c",
+    "now": 1767225600,
+    "proof": "eyJhbGciOiJFZERTQSIsImp3ayI6eyJjcnYiOiJFZDI1NTE5Iiwia3R5IjoiT0tQIiwieCI6InptU0VYUzV0MXBXd1RxdU5acUw3X1hHMml5aWxrdEswazZIelhNN0RNdmcifSwidHlwIjoiZHBvcCtqd3QifQ.eyJodG0iOiJQT1NUIiwiaHR1IjoiaHR0cHM6Ly9ybW0uZXhhbXBsZS50ZXN0L2Nvbm5lY3QvdjEvdG9rZW4iLCJpYXQiOjE3NjcyMjU2MDAsImp0aSI6ImV4dC12ZWN0b3ItcHJvb2YtMSIsIm5vbmNlIjoiQUFBQUFBQlo0c0FCQlVUMmhLb2dIbl9aUWVuMVE5LWMifQ.Xc3_9cgEGvMAGrEzQgAJ0XBnQHx2Fi-tqEKbG9eoSCLkEJBV4LV5bcP_FRn5mQTRrKT3y3nQ_XLmG0Q2SwVnAg",
+    "proof_method": "POST",
+    "proof_url": "https://rmm.example.test/connect/v1/token",
+    "secret_hex": "e2053e3f1590a0cb39a8b38735aebc8299aeb8f17224421366c6d039980b49e3",
+    "valid_until_exclusive": 1767226200,
+    "window": 300,
+    "wrong_context": "token:conn-vector-2"
+  },
+  "keys": {
+    "A": {
+      "seed_hex": "f7dc88629e36bda28d7516f0187f6d5e2a62ef06f3ebc22456629dab38b7e6d0",
+      "thumbprint": "DyUiqJ3QWSKm9b3zc2ekm_6hvUanLLh-uIbcAoHXqpE"
+    },
+    "B": {
+      "seed_hex": "d5b1cb22d2977ec27683c2dc0d2d1720adf093c31e8fa2f5ea966342b9cae13c",
+      "thumbprint": "t0P2tTRwh5r4o8XmOitlcc44Gpvnvb-JMyYD226Mj4A"
+    }
+  },
+  "notice": "TEST-ONLY KEYS. Published seeds; never use outside conformance tests."
+}

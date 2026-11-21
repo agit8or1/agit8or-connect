@@ -38,6 +38,10 @@ Rules:
 - Every transition into `active`, and every resume, is refused while the kill switch is engaged.
 - v1 code-flow connections follow the same machine.
 
+Reference implementation (Python): `lifecycle.transition` enforces this table (and refuses `active` without a
+passing test in the same commit, or while the kill switch is engaged); `lifecycle.Health` implements the
+hysteresis of §2. The in-memory reference peer uses a simplified subset of the states.
+
 ## 2. Health while active
 
 ```mermaid

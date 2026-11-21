@@ -249,12 +249,12 @@ Updated as the hardening work lands. "Open" means not addressed in this reposito
 | F-07 | Medium | Fixed (P0): shared fail-closed `RateLimiter` on pairing, token, authentication and signature failures |
 | F-08 | Medium | Fixed (P0): PROTOCOL §2 now MUST; `keystore.PrivateKeyCipher` in both SDKs with a shared vector |
 | F-09 | Medium | Fixed (P0): one deadline, request cap, SPKI pins, expiry warning, distinct certificate errors (new transport); legacy transport gained deadline and request cap |
-| F-10 | Medium | Partial (P0): kill switch and `suspended` in the reference peer; `testing` state and connection-test gate planned (P1 lifecycle) |
+| F-10 | Medium | Fixed (P1): `lifecycle` enforces the documented state machine (active only from testing with a passing test, kill switch), failure classes, reconnect ladder / circuit, health hysteresis; the in-memory reference peer still uses a simplified subset |
 | F-11 | Medium | Fixed (P0): explicit address tables independent of the runtime, pinned by `addresses.json` |
 | F-12 | Medium | Fixed (P0): pairing request recorded for replay only after the code matches |
 | F-13 | Medium | Partial (P0): TS `authenticateResourceRequest`, scope `Catalog`, stores, approvals, keystore; discovery parsing and tenant authorisation helpers still Python-only |
-| F-14 | Medium | Open (P1 audit checkpoints) |
-| F-16 | Medium | Open (P1 trusted-proxy resolver) |
+| F-14 | Medium | Fixed (P1): signed checkpoints, export verification against published checkpoints, redaction (`audit`, `SqlAuditLog`; TS verification); vector `audit-checkpoint.json` |
+| F-16 | Medium | Fixed (P1): `proxy.TrustedProxyResolver` (both SDKs); deployment examples in PRODUCTION_DEPLOYMENT.md |
 | F-15 | Low | Fixed (P0): event-type allowlist and authorisation before the event id is recorded |
 | F-17 | Low | Fixed (P0): both in-memory stores pruned over time and bounded; documented as single-process |
 | F-18 | Low | Fixed (P0): IPv4-mapped sources compared as IPv4 in both SDKs |
@@ -262,6 +262,6 @@ Updated as the hardening work lands. "Open" means not addressed in this reposito
 | F-20 | Low | Fixed (P0): one error for unknown and inactive clients |
 | F-22 | Low | Open (P2 CI supply chain) |
 | F-21 | Info | Partial (P0): D-7 and D-8 fixed; D-9 (`/customers` in the reference peer) open |
-| F-23 | Info | Open (P1 DPoP nonce extension) |
-| F-24 | Info | Partial (P0): per-action approval (`action-approval/1`, PROTOCOL §7.4); delegated-user actor profile open (P1) |
-| F-25 | Info | Open (P1 integration harness) |
+| F-23 | Info | Fixed (P1): negotiated `dpop-nonce/1` (PROTOCOL §18.1), both SDKs and the reference peer; vector `extensions.json` |
+| F-24 | Info | Fixed (P0/P1): `action-approval/1` (§7.4) and `actor/1` (§18.2) |
+| F-25 | Info | Partial (P1): multi-process HTTPS harness with restart, DNS change and the TypeScript SDK as a second caller (`tests/test_harness.py`); live conformance checks remain read-only |

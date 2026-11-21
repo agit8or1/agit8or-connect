@@ -1,0 +1,127 @@
+{
+  "description": "Signed audit checkpoint (typ audit-checkpoint+jwt) and an export bundle (agit8or-connect-audit-export/1).",
+  "export": {
+    "checkpoint": "eyJhbGciOiJFZERTQSIsImtpZCI6InJ2bXZRX3Bwem5zc0NOMEdzSW8xSVhNY0JpREx3dm4zeFBVMUJBVk8yeG8iLCJ0eXAiOiJhdWRpdC1jaGVja3BvaW50K2p3dCJ9.eyJoYXNoIjoiNDlmYmYzMzBmNzRjZmRmZWY5OTc2YTIxMjRiNmExNDRjMDVhODFhZTNjN2QwNzdkYTQ4YzNkMzBiYTkyYTE0NCIsImlhdCI6MTc2NzIyNTYwMCwiaXNzIjoiaW5zdC1hdWRpdCIsInNlcSI6M30.sobw_3_O8IEJJHeXZaqvc19MVofMw6iYUWI8kiaG47NW7Riz2nWv-2PcOW4WEN0sylB62IRYwbhzwrKtDQ2NDA",
+    "entries": [
+      {
+        "hash": "086bef5bc63725edf3491866a9243df0c1b1c6dcf8bb093ab001ee749bd87768",
+        "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+        "record": {
+          "connection_id": "c1",
+          "op": "connection.approved"
+        },
+        "seq": 1
+      },
+      {
+        "hash": "e76ae2d9a7e2fb49e3ff6cdf11f9a6eb77978c3a8fdb63d3c154fac75a849030",
+        "prev_hash": "086bef5bc63725edf3491866a9243df0c1b1c6dcf8bb093ab001ee749bd87768",
+        "record": {
+          "approvers": 2,
+          "connection_id": "c1",
+          "op": "scope.elevated.approved"
+        },
+        "seq": 2
+      },
+      {
+        "hash": "49fbf330f74cfdfef9976a2124b6a144c05a81ae3c7d077da48c3d30ba92a144",
+        "prev_hash": "e76ae2d9a7e2fb49e3ff6cdf11f9a6eb77978c3a8fdb63d3c154fac75a849030",
+        "record": {
+          "connection_id": "c1",
+          "op": "connection.suspended"
+        },
+        "seq": 3
+      }
+    ],
+    "format": "agit8or-connect-audit-export/1",
+    "issuer": "inst-audit",
+    "start_prev": "0000000000000000000000000000000000000000000000000000000000000000",
+    "start_seq": 1
+  },
+  "head": {
+    "hash": "49fbf330f74cfdfef9976a2124b6a144c05a81ae3c7d077da48c3d30ba92a144",
+    "seq": 3
+  },
+  "key": {
+    "public_jwk": {
+      "alg": "EdDSA",
+      "crv": "Ed25519",
+      "kid": "rvmvQ_ppznssCN0GsIo1IXMcBiDLwvn3xPU1BAVO2xo",
+      "kty": "OKP",
+      "use": "sig",
+      "x": "5MEI9n6nbRDZcOSxL_X3lGUr8M8xO3A9zaA9X25F6sA"
+    },
+    "seed_hex": "d8988b456be4a13abd1d8c1c13d64f9d42186d304e44283b90e728bf35d1c68e"
+  },
+  "negative": [
+    {
+      "case": "record changed",
+      "entries": [
+        {
+          "hash": "086bef5bc63725edf3491866a9243df0c1b1c6dcf8bb093ab001ee749bd87768",
+          "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+          "record": {
+            "connection_id": "c1",
+            "op": "connection.approved"
+          },
+          "seq": 1
+        },
+        {
+          "hash": "e76ae2d9a7e2fb49e3ff6cdf11f9a6eb77978c3a8fdb63d3c154fac75a849030",
+          "prev_hash": "086bef5bc63725edf3491866a9243df0c1b1c6dcf8bb093ab001ee749bd87768",
+          "record": {
+            "approvers": 1,
+            "connection_id": "c1",
+            "op": "scope.elevated.approved"
+          },
+          "seq": 2
+        },
+        {
+          "hash": "49fbf330f74cfdfef9976a2124b6a144c05a81ae3c7d077da48c3d30ba92a144",
+          "prev_hash": "e76ae2d9a7e2fb49e3ff6cdf11f9a6eb77978c3a8fdb63d3c154fac75a849030",
+          "record": {
+            "connection_id": "c1",
+            "op": "connection.suspended"
+          },
+          "seq": 3
+        }
+      ],
+      "error": "audit_invalid"
+    },
+    {
+      "case": "truncated",
+      "entries": [
+        {
+          "hash": "086bef5bc63725edf3491866a9243df0c1b1c6dcf8bb093ab001ee749bd87768",
+          "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+          "record": {
+            "connection_id": "c1",
+            "op": "connection.approved"
+          },
+          "seq": 1
+        },
+        {
+          "hash": "e76ae2d9a7e2fb49e3ff6cdf11f9a6eb77978c3a8fdb63d3c154fac75a849030",
+          "prev_hash": "086bef5bc63725edf3491866a9243df0c1b1c6dcf8bb093ab001ee749bd87768",
+          "record": {
+            "approvers": 2,
+            "connection_id": "c1",
+            "op": "scope.elevated.approved"
+          },
+          "seq": 2
+        }
+      ],
+      "error": "audit_invalid"
+    },
+    {
+      "case": "published checkpoint differs",
+      "error": "audit_invalid",
+      "known_checkpoints": [
+        {
+          "hash": "0000000000000000000000000000000000000000000000000000000000000000",
+          "seq": 2
+        }
+      ]
+    }
+  ],
+  "notice": "TEST-ONLY KEYS. Published seeds; never use outside conformance tests."
+}

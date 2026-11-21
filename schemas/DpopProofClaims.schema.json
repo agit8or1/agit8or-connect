@@ -31,6 +31,11 @@
     "ath": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]+$"
+    },
+    "nonce": {
+      "description": "dpop-nonce/1 only (PROTOCOL.md §18.1)",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{32,64}$"
     }
   }
 }

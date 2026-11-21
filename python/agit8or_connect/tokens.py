@@ -168,10 +168,13 @@ def access_token_hash(access_token: str) -> str:
 
 
 def build_dpop_proof(private_key: Ed25519PrivateKey, method: str, url: str, *, now: Optional[int] = None,
-                     jti: Optional[str] = None, access_token: Optional[str] = None) -> str:
+                     jti: Optional[str] = None, access_token: Optional[str] = None,
+                     nonce: Optional[str] = None) -> str:
     claims = {'jti': jti or new_jti(), 'htm': method.upper(), 'htu': normalize_htu(url), 'iat': _now(now)}
     if access_token:
         claims['ath'] = access_token_hash(access_token)
+    if nonce:                                   # dpop-nonce/1 (extensions.py); absent otherwise
+        claims['nonce'] = nonce
     jwk = _keys.public_jwk(private_key)
     header = {'alg': 'EdDSA', 'typ': TYP_DPOP, 'jwk': {k: jwk[k] for k in ('kty', 'crv', 'x')}}
     return sign_compact(private_key, header, claims)
@@ -179,7 +182,8 @@ def build_dpop_proof(private_key: Ed25519PrivateKey, method: str, url: str, *, n
 
 def verify_dpop_proof(proof: str, *, method: str, url: str, replay: ReplayStore, now: Optional[int] = None,
                       access_token: Optional[str] = None, expected_jkt: Optional[str] = None,
-                      allowed_jkts: Optional[Iterable[str]] = None) -> Tuple[str, dict]:
+                      allowed_jkts: Optional[Iterable[str]] = None,
+                      nonce_check: Optional[Callable[[Optional[str]], None]] = None) -> Tuple[str, dict]:
     """(jkt, claims). The key is the proof's own `jwk` header; it must match
     `expected_jkt` (the token's cnf.jkt) or be one of `allowed_jkts` (the
     connection's keys, at the token endpoint). iat within ±120 s, jti
@@ -217,6 +221,8 @@ def verify_dpop_proof(proof: str, *, method: str, url: str, replay: ReplayStore,
             raise ConnectError(INVALID_DPOP, 'proof is for another access token', 401)
     if not isinstance(claims.get('jti'), str) or not 8 <= len(claims['jti']) <= 128:
         raise ConnectError(INVALID_DPOP, 'proof jti invalid', 401)
+    if nonce_check is not None:                 # dpop-nonce/1: checked before the jti is spent
+        nonce_check(claims.get('nonce'))
     if not replay.add('dpop', f'{jkt}:{claims["jti"]}', iat + DPOP_MAX_AGE + SKEW):
         raise ConnectError(REPLAYED, 'DPoP proof already used', 401)
     return jkt, claims
@@ -228,7 +234,9 @@ def keys_by_kid(jwks) -> Dict[str, Ed25519PublicKey]:
 
 def authenticate_resource_request(*, authorization: str, dpop: str, method: str, url: str, issuer: str,
                                   token_keys_for: Callable[[str], KeySource], replay: ReplayStore,
-                                  now: Optional[int] = None) -> Tuple[dict, str]:
+                                  now: Optional[int] = None,
+                                  nonce_check_for: Optional[Callable[[str], Optional[Callable]]] = None
+                                  ) -> Tuple[dict, str]:
     """Authenticate one API call: `Authorization: DPoP <token>` + `DPoP: <proof>`.
 
     `token_keys_for(client_id)` returns OUR keys that may have signed tokens
@@ -247,5 +255,6 @@ def authenticate_resource_request(*, authorization: str, dpop: str, method: str,
         raise ConnectError(INVALID_TOKEN, 'malformed access token', 401)
     claims = verify_access_token(token, token_keys_for(client_id) or {}, issuer=issuer, now=now)
     verify_dpop_proof(dpop, method=method, url=url, replay=replay, now=now, access_token=token,
-                      expected_jkt=claims['cnf']['jkt'])
+                      expected_jkt=claims['cnf']['jkt'],
+                      nonce_check=nonce_check_for(client_id) if nonce_check_for else None)
     return claims, client_id
