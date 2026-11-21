@@ -144,4 +144,6 @@ Recommendations only; this repository does not change its own settings:
   dependency-review job of the security workflow.
 - Code scanning: the guarded transports (`transport.py`, `transport.ts`) send requests to peer-supplied URLs by
   design, after the approved-destination checks; CodeQL's request-forgery queries flag them. Review and dismiss
-  those alerts as "used in tests / by design" rather than excluding the queries.
+  those alerts as "won't fix / by design" rather than excluding the queries. The same applies to the
+  permissions alert in `test_security_regressions.test_key_file_permissions`, which makes a key file
+  group-readable on purpose to prove it is refused.
