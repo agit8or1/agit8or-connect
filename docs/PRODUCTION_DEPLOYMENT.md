@@ -2,7 +2,7 @@
 
 How to run a host application that implements Agit8or Connect with the reference SDKs. This is guidance for
 hosts; the SDKs are libraries, not a server. What is and is not proven by tests is listed in
-[SECURITY_AND_READINESS_AUDIT.md](SECURITY_AND_READINESS_AUDIT.md).
+[PRODUCTION_READINESS.md](PRODUCTION_READINESS.md); the design in [SECURITY_ARCHITECTURE.md](SECURITY_ARCHITECTURE.md).
 
 ## 1. Components a production host needs
 

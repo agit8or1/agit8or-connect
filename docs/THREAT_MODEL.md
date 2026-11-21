@@ -85,4 +85,10 @@ Covers `agit8or-connect/1` ([PROTOCOL.md](PROTOCOL.md) §16), the Quick Connect 
   source policy admits; keep the source policy tight.
 - Event bodies are signed, not encrypted; their confidentiality rests on TLS.
 - SPKI pins are compared after the handshake (before any request bytes).
-- No independent second implementation and no independent security review exist yet.
+- Audit anchoring detects rewriting only up to the last checkpoint a verifier holds; entries after it can be
+  dropped by someone who controls the database. Publish checkpoints off-host and often (`audit.sign_checkpoint`).
+- `dpop-nonce/1` and `actor/1` protect only connections where both installations negotiated them; a 1.0 / 1.1
+  peer still relies on `iat` windows and the jti replay store. The actor `sub` is the issuing installation's
+  claim about its own user; the receiving side cannot verify the person, only attribute and limit.
+- The TypeScript SDK and the Python SDK share an author; they are two implementations, not independent ones.
+  No independent security review exists yet.

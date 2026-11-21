@@ -260,8 +260,8 @@ Updated as the hardening work lands. "Open" means not addressed in this reposito
 | F-18 | Low | Fixed (P0): IPv4-mapped sources compared as IPv4 in both SDKs |
 | F-19 | Low | Fixed (P0): `retire_due` runs on token use; `_pairing_status` uses the request key |
 | F-20 | Low | Fixed (P0): one error for unknown and inactive clients |
-| F-22 | Low | Open (P2 CI supply chain) |
-| F-21 | Info | Partial (P0): D-7 and D-8 fixed; D-9 (`/customers` in the reference peer) open |
+| F-22 | Low | Fixed (P2): hash-locked requirements, pip-audit, dependency review, CodeQL, secret scanning, SBOM, Dependabot, SHA-pinned actions, draft-only release workflow, schema / vector compatibility check |
+| F-21 | Info | Fixed (P0/P2): D-7 and D-8 in P0; D-9 `/connect/v1/customers` served by the reference peer in P2 |
 | F-23 | Info | Fixed (P1): negotiated `dpop-nonce/1` (PROTOCOL §18.1), both SDKs and the reference peer; vector `extensions.json` |
 | F-24 | Info | Fixed (P0/P1): `action-approval/1` (§7.4) and `actor/1` (§18.2) |
 | F-25 | Info | Partial (P1): multi-process HTTPS harness with restart, DNS change and the TypeScript SDK as a second caller (`tests/test_harness.py`); live conformance checks remain read-only |

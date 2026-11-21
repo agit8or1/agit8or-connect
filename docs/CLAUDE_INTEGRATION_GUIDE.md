@@ -20,6 +20,10 @@ MUST NOT, SHOULD and MAY are used as in RFC 2119.
    [`test-vectors/`](../test-vectors/) for exact bytes.
 6. [`python/agit8or_connect/reference_peer.py`](../python/agit8or_connect/reference_peer.py) — a complete worked
    example of both roles.
+7. [PRODUCTION_DEPLOYMENT.md](PRODUCTION_DEPLOYMENT.md), [SECURITY_ARCHITECTURE.md](SECURITY_ARCHITECTURE.md),
+   [INTEGRATION_CHECKLIST.md](INTEGRATION_CHECKLIST.md), [QUICK_CONNECT_UI.md](QUICK_CONNECT_UI.md) (screens and
+   the workflow contract), [COMPATIBILITY_MATRIX.md](COMPATIBILITY_MATRIX.md), and
+   [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md) for what is and is not proven.
 
 When documents disagree: the specifications win over the guides; the vectors win over prose for byte-level
 questions. Report the disagreement; do not silently pick one.
@@ -50,16 +54,28 @@ questions. Report the disagreement; do not silently pick one.
 - MUST compare secrets (state, code hashes) in constant time.
 - MUST NOT log, audit, display or export tokens, assertions, DPoP proofs, codes, PKCE verifiers, signatures or
   private keys.
-- MUST encrypt private keys at rest, with associated data bound to the row.
+- MUST encrypt private keys at rest, with associated data bound to the row (`keystore.PrivateKeyCipher`).
+
+### Shared state
+
+- MUST use shared, persistent stores for replay, rate limits, approvals and approved destinations when more than
+  one worker or host serves Connect (`storage` SQL stores; PostgreSQL for several hosts). In-memory stores are
+  for tests only.
+- MUST let a store failure refuse the request (`*_unavailable`); never catch it and continue.
+- MUST implement elevated grants with two different, freshly re-authenticated administrators. MUST NOT add a
+  single-administrator override, even behind a setting.
+- MUST NOT enable an optional extension (`dpop-nonce/1`, `actor/1`, `action-approval/1`) silently; advertise it
+  only when it is implemented end to end, and use it only when both sides advertised it.
 
 ### Network
 
 - MUST refuse every source address by default on all Connect routes, before authentication, with an installation
   layer and a connection layer that both must allow. MUST answer `403 source_not_authorised`.
-- MUST read the client address only through trusted-proxy logic. MUST NOT trust `X-Forwarded-For` from anyone else.
+- MUST read the client address only through trusted-proxy logic (`proxy.TrustedProxyResolver`). MUST NOT trust
+  `X-Forwarded-For` from anyone else.
 - MUST bind an authenticated request to the connection whose source rule matched.
 - MUST NOT derive any source rule from the address of a browser request.
-- Outbound: MUST use HTTPS, TLS ≥ 1.2 with certificate and hostname verification; MUST NOT follow redirects or use
+- Outbound: MUST use `transport.GuardedTransport` with the connection's approved destination. HTTPS, TLS ≥ 1.2 with certificate and hostname verification; MUST NOT follow redirects or use
   proxies; MUST check every resolved address and the connected address against the approved destination; MUST
   always refuse loopback, link-local, unspecified, multicast and metadata addresses.
 - MUST NOT fetch a peer's `discovery_url` or `base` until an administrator performs a deliberate action (POST).
@@ -93,8 +109,9 @@ questions. Report the disagreement; do not silently pick one.
 4. Outbound guarded client with approved destinations.
 5. Lifecycle, connection test, health, reconnect.
 6. Optional: Quick Connect (1.1), then `qc_probe`.
-7. Administrator UI.
+7. Administrator UI following the workflow contract in QUICK_CONNECT_UI.md.
 8. Run the SDK vector tests, the conformance suite, and your own end-to-end tests against the reference peer.
+9. Work through INTEGRATION_CHECKLIST.md and report every unticked item.
 
 ## 5. How to run conformance
 
@@ -105,6 +122,7 @@ TypeScript part; `PyYAML` optional):
 cd python && python -m unittest discover && python -m agit8or_connect.tools.generate_vectors --check && cd ..
 cd typescript && npm test && cd ..
 cd conformance && python -m unittest discover -v && cd ..
+python tools/check_schema_compat.py origin/main     # schemas / vectors stay backward compatible
 ```
 
 Against your running installation (read-only, unauthenticated, from an address you have allowed or not):
