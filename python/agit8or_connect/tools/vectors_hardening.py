@@ -2,6 +2,8 @@
 
     addresses.json       address classification shared by both SDKs (outbound policy, source policy)
     key-envelope.json    private-key encryption at rest: AES-256-GCM envelope with row-bound associated data
+    extensions.json      dpop-nonce/1 nonces and proofs, actor/1 access tokens
+    audit-checkpoint.json  signed audit checkpoints and export bundles
 """
 from __future__ import annotations
 
@@ -89,4 +91,67 @@ def key_envelope_vectors():
 
 
 def hardening_files():
-    return {'addresses.json': address_vectors(), 'key-envelope.json': key_envelope_vectors()}
+    return {'addresses.json': address_vectors(), 'key-envelope.json': key_envelope_vectors(),
+            'extensions.json': extension_vectors(), 'audit-checkpoint.json': checkpoint_vectors()}
+
+
+# --- extensions.json and audit-checkpoint.json (P1) -------------------------------------------------------
+
+NOW = 1767225600
+INST_B = '6c0d2a9e-4b1f-4c3a-9e2d-7f5a1b3c9d02'
+CONN_V = '0f8e7d6c-5b4a-4392-8a1b-0c9d8e7f6a51'
+
+
+def _seed(name):
+    return hashlib.sha256(f'agit8or-connect test key {name}'.encode()).digest()
+
+
+def extension_vectors():
+    """dpop-nonce/1 (fixed secret and window) and actor/1 tokens."""
+    from .. import extensions as ext
+    from .. import keys, tokens
+    a, b = keys.private_key_from_seed(_seed('ext-A')), keys.private_key_from_seed(_seed('ext-B'))
+    secret = hashlib.sha256(b'agit8or-connect test nonce secret').digest()
+    issuer = ext.NonceIssuer(secret, clock=lambda: NOW)
+    nonce = issuer.issue('token:conn-vector-1')
+    url = 'https://rmm.example.test/connect/v1/token'
+    proof = tokens.build_dpop_proof(a, 'POST', url, now=NOW, jti='ext-vector-proof-1', nonce=nonce)
+    at, _ = tokens.issue_access_token(b, issuer=INST_B, client_id=CONN_V, scopes=['connection:read'],
+                                      jkt=keys.thumbprint(a), now=NOW, jti='ext-vector-at-1',
+                                      extra=ext.actor_claim('user:42'))
+    return {'notice': NOTICE,
+            'description': 'dpop-nonce/1: nonce = base64url(uint64 window index || HMAC-SHA256(secret, '
+                           '"dpop-nonce/1\\n" || context || "\\n" || uint64 index)[:16]), window 300 s, current and '
+                           'previous window valid. actor/1: access token claim act = {"sub": opaque id}.',
+            'keys': {'A': {'seed_hex': _seed('ext-A').hex(), 'thumbprint': keys.thumbprint(a)},
+                     'B': {'seed_hex': _seed('ext-B').hex(), 'thumbprint': keys.thumbprint(b)}},
+            'dpop_nonce': {'secret_hex': secret.hex(), 'window': 300, 'now': NOW, 'context': 'token:conn-vector-1',
+                           'nonce': nonce, 'valid_until_exclusive': (NOW // 300 + 2) * 300,
+                           'proof': proof, 'proof_url': url, 'proof_method': 'POST',
+                           'wrong_context': 'token:conn-vector-2'},
+            'actor': {'access_token': at, 'issuer': INST_B, 'actor': 'user:42', 'now': NOW,
+                      'invalid_actors': ['', 'alice@example.test', 'a b', 'x' * 129]}}
+
+
+def checkpoint_vectors():
+    from .. import audit, keys
+    k = keys.private_key_from_seed(_seed('audit'))
+    entries, prev = [], audit.GENESIS
+    for i, rec in enumerate([{'op': 'connection.approved', 'connection_id': 'c1'},
+                             {'op': 'scope.elevated.approved', 'connection_id': 'c1', 'approvers': 2},
+                             {'op': 'connection.suspended', 'connection_id': 'c1'}], start=1):
+        h = audit.entry_hash(prev, rec)
+        entries.append({'seq': i, 'record': rec, 'prev_hash': prev, 'hash': h})
+        prev = h
+    cp = audit.sign_checkpoint(k, issuer='inst-audit', seq=3, head_hash=prev, now=NOW)
+    bundle = audit.export_bundle(entries, cp, issuer='inst-audit')
+    tampered = [dict(e) for e in entries]
+    tampered[1] = dict(tampered[1], record={'op': 'scope.elevated.approved', 'connection_id': 'c1', 'approvers': 1})
+    return {'notice': NOTICE, 'description': 'Signed audit checkpoint (typ audit-checkpoint+jwt) and an export '
+                                             'bundle (agit8or-connect-audit-export/1).',
+            'key': {'seed_hex': _seed('audit').hex(), 'public_jwk': keys.public_jwk(k)},
+            'export': bundle, 'head': {'seq': 3, 'hash': prev},
+            'negative': [{'case': 'record changed', 'entries': tampered, 'error': 'audit_invalid'},
+                         {'case': 'truncated', 'entries': entries[:2], 'error': 'audit_invalid'},
+                         {'case': 'published checkpoint differs', 'known_checkpoints': [{'seq': 2, 'hash': '0' * 64}],
+                          'error': 'audit_invalid'}]}

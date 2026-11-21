@@ -312,14 +312,15 @@ export function normalizeHtu(url: string): string {
 
 export const accessTokenHash = (token: string) => sha256B64url(Buffer.from(token, 'ascii'));
 
-export function buildDpopProof(key: KeyObject, method: string, url: string, o: { now?: number; jti?: string; accessToken?: string } = {}): string {
+export function buildDpopProof(key: KeyObject, method: string, url: string, o: { now?: number; jti?: string; accessToken?: string; nonce?: string } = {}): string {
   const claims: Record<string, unknown> = { jti: o.jti ?? newJti(), htm: method.toUpperCase(), htu: normalizeHtu(url), iat: nowS(o.now) };
   if (o.accessToken) claims.ath = accessTokenHash(o.accessToken);
+  if (o.nonce) claims.nonce = o.nonce;   // dpop-nonce/1 (extensions.ts)
   const jwk = publicJwk(key);
   return signCompact(key, { alg: 'EdDSA', typ: TYP_DPOP, jwk: { kty: jwk.kty, crv: jwk.crv, x: jwk.x } }, claims);
 }
 
-export function verifyDpopProof(proof: string, o: { method: string; url: string; replay: ReplayStore; now?: number; accessToken?: string; expectedJkt?: string; allowedJkts?: string[] }): { jkt: string; claims: Record<string, unknown> } {
+export function verifyDpopProof(proof: string, o: { method: string; url: string; replay: ReplayStore; now?: number; accessToken?: string; expectedJkt?: string; allowedJkts?: string[]; nonceCheck?: (nonce: unknown) => void }): { jkt: string; claims: Record<string, unknown> } {
   if (typeof proof !== 'string' || !proof) throw new ConnectError('invalid_dpop_proof', 'DPoP proof missing', 401);
   const header = rewrap('invalid_dpop_proof', () => unverifiedHeader(proof));
   const key = rewrap('invalid_dpop_proof', () => publicKeyFromJwk(header.jwk));
@@ -334,6 +335,7 @@ export function verifyDpopProof(proof: string, o: { method: string; url: string;
   if (o.accessToken !== undefined && claims.ath !== accessTokenHash(o.accessToken)) throw new ConnectError('invalid_dpop_proof', 'proof is for another access token', 401);
   const jti = claims.jti;
   if (typeof jti !== 'string' || jti.length < 8 || jti.length > 128) throw new ConnectError('invalid_dpop_proof', 'proof jti invalid', 401);
+  if (o.nonceCheck) o.nonceCheck(claims.nonce);   // dpop-nonce/1: before the jti is spent
   if (!o.replay.add('dpop', `${jkt}:${jti}`, iat + 120 + SKEW)) throw new ConnectError('replayed', 'DPoP proof already used', 401);
   return { jkt, claims };
 }
@@ -1210,3 +1212,4 @@ export * from './stores.ts';
 export * from './approvals.ts';
 export * from './keystore.ts';
 export * from './server.ts';
+export * from './extensions.ts';

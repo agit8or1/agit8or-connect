@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/agit8or1/agit8or-connect/schemas/AuditCheckpointClaims.schema.json",
+  "title": "Signed audit checkpoint (PROTOCOL.md §14.1); local, exchanged only when an operator publishes it",
+  "description": "Payload of a JWS with header typ \"audit-checkpoint+jwt\".",
+  "x-jws-typ": "audit-checkpoint+jwt",
+  "type": "object",
+  "required": [
+    "hash",
+    "iat",
+    "iss",
+    "seq"
+  ],
+  "properties": {
+    "iss": {
+      "type": "string"
+    },
+    "seq": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "iat": {
+      "type": "integer"
+    }
+  }
+}

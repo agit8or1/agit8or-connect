@@ -40,6 +40,7 @@ from typing import Callable, Dict, List, Optional
 from urllib.parse import urlsplit
 
 from . import PROTOCOL_ID, discovery, keys, pairing, rotation, tokens, webhooks
+from . import extensions as ext
 from . import quick_connect as qc
 from .approvals import (ACTION_APPROVAL_HEADER, ActionApprovals, AdminAuth, ElevatedGrantPolicy,
                         MemoryActionApprovalStore, MemoryGrantApprovalStore, grant_fingerprint)
@@ -128,6 +129,9 @@ class PeerConnection:
     remote_keys_fetched_at: int = 0
     pending: dict = field(default_factory=dict)  # an approval waiting for the second administrator
     fingerprint: str = ''                       # elevated-grant fingerprint of the active approval
+    negotiated: dict = field(default_factory=dict)  # extensions.py extensions both sides advertised
+    dpop_nonce: str = ''                        # client side: last DPoP-Nonce the peer sent (dpop-nonce/1)
+    api_nonce: str = ''
 
     def active_key(self):
         for kid, k in self.keys.items():
@@ -150,7 +154,8 @@ class ReferencePeer:
                  clock: Callable[[], float] = time.time, tenants: Optional[Dict[str, str]] = None,
                  quick_connect: bool = False, egress: Optional[List[str]] = None,
                  source_address: Optional[str] = None, replay=None, rate_limiter: Optional[RateLimiter] = None,
-                 elevated: Optional[ElevatedGrantPolicy] = None, actions: Optional[ActionApprovals] = None):
+                 elevated: Optional[ElevatedGrantPolicy] = None, actions: Optional[ActionApprovals] = None,
+                 extensions: Optional[dict] = None):
         self.base = base_url.rstrip('/')
         self.network = network
         self.installation_id = str(uuid.uuid4())
@@ -166,6 +171,10 @@ class ReferencePeer:
         self.actions = actions or ActionApprovals(MemoryActionApprovalStore(), clock=clock,
                                                   kill_switch=lambda: self.kill_switch)
         self.grants = MemoryTenantResolver()
+        # Post-1.1 negotiated extensions (extensions.py). Off unless asked for, so the default reference peer
+        # still publishes exactly the 1.0 / 1.1 discovery document.
+        self.extensions = dict(extensions or {})
+        self.nonces = ext.NonceIssuer(ext.new_nonce_secret(), clock=clock)
         self.tenants = dict(tenants or {'cust-1': 'Customer One', 'cust-2': 'Customer Two'})
         self.pepper = secrets.token_bytes(32)
         self.invitations: List[dict] = []
@@ -207,7 +216,14 @@ class ReferencePeer:
                                                      'operator serves'})
         if self.qc_advertise:
             doc = qc.extend_discovery_document(doc, self.base)
+        if self.extensions:
+            doc['extensions'] = {**doc.get('extensions', {}), **ext.discovery_extensions(self.extensions)}
         return doc
+
+    def _negotiate(self, raw_doc: dict, discovery_url: str) -> dict:
+        if not self.extensions:
+            return {}
+        return ext.negotiate(qc.advertised_extensions(raw_doc, discovery_url), self.extensions)
 
     def _send(self, method, url, headers=None, body=None) -> Response:
         """Outbound request from this installation's source address."""
@@ -234,6 +250,9 @@ class ReferencePeer:
         body = e.as_dict()
         if getattr(e, 'approval_id', None):
             body['error']['approval_id'] = e.approval_id
+        if getattr(e, 'dpop_nonce', None):
+            h[ext.NONCE_HEADER] = e.dpop_nonce
+            h['WWW-Authenticate'] = f'DPoP error="{e.code}", algs="EdDSA"'
         return self._json(e.status, body, h)
 
     def _source(self) -> str:
@@ -347,6 +366,7 @@ class ReferencePeer:
         if info.installation_id != conn.remote_installation:
             raise ConnectError(INVALID_REQUEST, 'initiator discovery identity mismatch')
         conn.remote_endpoints = info.endpoints
+        conn.negotiated = self._negotiate(info.raw, url)
 
     def approve(self, request_id: str, *, scopes: List[str], tenant_grants: List[dict],
                 requested_scopes: List[str] = (), reject: bool = False, admin: Optional[AdminAuth] = None):
@@ -466,21 +486,31 @@ class ReferencePeer:
                                                              client_id=conn.id, token_endpoint=endpoint,
                                                              replay=self.replay, now=self.now())
                 jkt, _ = tokens.verify_dpop_proof(headers.get('DPoP', ''), method='POST', url=endpoint,
-                                                  replay=self.replay, now=self.now(), allowed_jkts=[kid])
-            except ConnectError:
-                self.limits.hit('token.failure', client_id, src)
+                                                  replay=self.replay, now=self.now(), allowed_jkts=[kid],
+                                                  nonce_check=ext.nonce_checker(self.nonces, conn.negotiated,
+                                                                                f'token:{conn.id}'))
+            except ConnectError as e:
+                if e.code != ext.USE_DPOP_NONCE:      # asking for a nonce is part of the protocol, not a failure
+                    self.limits.hit('token.failure', client_id, src)
                 raise
             self.limits.check('token.connection', conn.id)
             usable = self.elevated.authorized_scopes(conn.id, conn.fingerprint, conn.inbound_scopes)
             requested = parse_scope_string(form.get('scope', '')) or list(usable)
             granted = require_subset(requested, usable)
+            extra = None
+            if form.get('actor'):
+                if conn.negotiated.get(ext.EXT_ACTOR) != 1:
+                    raise ConnectError(INVALID_REQUEST, 'actor tokens were not negotiated for this connection')
+                extra = ext.actor_claim(form['actor'])
             _, my = conn.active_key()
             at, _ = tokens.issue_access_token(my, issuer=self.installation_id, client_id=conn.id, scopes=granted,
-                                              jkt=jkt, now=self.now())
+                                              jkt=jkt, now=self.now(), extra=extra)
             return self._json(200, {'access_token': at, 'token_type': 'DPoP', 'expires_in': 300,
                                     'scope': ' '.join(granted)}, {'Cache-Control': 'no-store'})
         except ConnectError as e:
             h = {'Retry-After': str(getattr(e, 'retry_after', 60))} if e.status == 429 else {}
+            if getattr(e, 'dpop_nonce', None):
+                h[ext.NONCE_HEADER] = e.dpop_nonce
             return self._json(e.status if e.status != 403 else 400,
                               {'error': e.code, 'error_description': e.message}, h)
 
@@ -517,13 +547,19 @@ class ReferencePeer:
             raise
 
     def _authenticate_inner(self, method, url, headers):
+        self._actor = None
         def keys_for(client_id):
             c = self.connections.get(client_id)
             return c.verifying_keys() if c and c.state == 'active' else {}
+        def nonce_for(client_id):
+            c = self.connections.get(client_id)
+            return ext.nonce_checker(self.nonces, c.negotiated, f'api:{c.id}') if c else None
         claims, client_id = tokens.authenticate_resource_request(
             authorization=headers.get('Authorization', ''), dpop=headers.get('DPoP', ''), method=method, url=url,
-            issuer=self.installation_id, token_keys_for=keys_for, replay=self.replay, now=self.now())
+            issuer=self.installation_id, token_keys_for=keys_for, replay=self.replay, now=self.now(),
+            nonce_check_for=nonce_for)
         conn = self.connections[client_id]
+        self._actor = ext.actor_of(claims, conn.negotiated)
         if claims['iat'] < conn.tokens_not_before:
             raise ConnectError('invalid_token', 'token issued before the connection was re-keyed', 401)
         self.limits.check('api.connection', conn.id)
@@ -596,7 +632,8 @@ class ReferencePeer:
         if not approval:
             req = self.actions.request(connection_id=conn.id, tenant=tenant, target=data['target'],
                                        action_type=data['action'], params=params,
-                                       operator=f'connection:{conn.id}', required_scope='remote_actions:execute')
+                                       operator=ext.operator_for(conn.id, getattr(self, '_actor', None)),
+                                       required_scope='remote_actions:execute')
             e = ConnectError('action_approval_required', 'an administrator of this installation must approve '
                                                          'this action', 403)
             e.approval_id = req.id
@@ -616,6 +653,7 @@ class ReferencePeer:
         conn = PeerConnection(id=str(uuid.uuid4()), role='initiator', state='pending',
                               remote_installation=info.installation_id, remote_endpoints=info.endpoints,
                               remote_app={'type': info.app_type, 'display_name': info.display_name})
+        conn.negotiated = self._negotiate(info.raw, discovery.discovery_url(base_url))
         my = self._new_key(conn)
         self.connections[conn.id] = conn
         req, claims = pairing.build_request(
@@ -693,24 +731,35 @@ class ReferencePeer:
         conn.state = 'active'
         return conn
 
-    def get_token(self, conn_id: str, scopes: List[str] = (), key=None) -> dict:
+    def get_token(self, conn_id: str, scopes: List[str] = (), key=None, actor: Optional[str] = None) -> dict:
         conn = self.connections[conn_id]
         self.retire_due(conn_id)
         if key is None:
             _, key = conn.active_key()
         endpoint = conn.remote_endpoints['token']
-        assertion = tokens.build_client_assertion(key, conn.remote_connection_id, endpoint, now=self.now())
-        proof = tokens.build_dpop_proof(key, 'POST', endpoint, now=self.now())
         from urllib.parse import urlencode
-        form = {'grant_type': 'client_credentials', 'client_id': conn.remote_connection_id,
-                'client_assertion_type': tokens.CLIENT_ASSERTION_TYPE, 'client_assertion': assertion}
-        if scopes:
-            form['scope'] = ' '.join(scopes)
-        r = self.network.request('POST', endpoint, {'Content-Type': 'application/x-www-form-urlencoded',
-                                                    'DPoP': proof}, urlencode(form).encode())
-        data = json.loads(r.body or b'{}')
+        for attempt in (0, 1):                 # dpop-nonce/1: one retry with the nonce the peer sent
+            assertion = tokens.build_client_assertion(key, conn.remote_connection_id, endpoint, now=self.now())
+            proof = tokens.build_dpop_proof(key, 'POST', endpoint, now=self.now(), nonce=conn.dpop_nonce or None)
+            form = {'grant_type': 'client_credentials', 'client_id': conn.remote_connection_id,
+                    'client_assertion_type': tokens.CLIENT_ASSERTION_TYPE, 'client_assertion': assertion}
+            if scopes:
+                form['scope'] = ' '.join(scopes)
+            if actor:
+                form['actor'] = ext.validate_actor(actor)
+            r = self.network.request('POST', endpoint, {'Content-Type': 'application/x-www-form-urlencoded',
+                                                        'DPoP': proof}, urlencode(form).encode())
+            data = json.loads(r.body or b'{}')
+            if r.header(ext.NONCE_HEADER) and conn.negotiated.get(ext.EXT_DPOP_NONCE) == 1:
+                conn.dpop_nonce = r.header(ext.NONCE_HEADER)
+            if not (r.status == 401 and data.get('error') == ext.USE_DPOP_NONCE and attempt == 0
+                    and conn.negotiated.get(ext.EXT_DPOP_NONCE) == 1):
+                break
         if r.status != 200:
-            raise ConnectError(data.get('error', 'token_failed'), data.get('error_description', ''), r.status)
+            err = data.get('error', 'token_failed')
+            if isinstance(err, dict):           # protocol error form (kill switch, source policy) before OAuth
+                raise ConnectError(str(err.get('code', 'token_failed')), str(err.get('message', '')), r.status)
+            raise ConnectError(str(err), data.get('error_description', ''), r.status)
         conn.token_cache = {'token': data['access_token'], 'key': key}
         return data
 
@@ -721,11 +770,19 @@ class ReferencePeer:
             token = self.get_token(conn_id)['access_token']
         if key is None:
             _, key = conn.active_key()
-        h = {'Authorization': f'DPoP {token}',
-             'DPoP': tokens.build_dpop_proof(key, method, url, now=self.now(), access_token=token)}
-        if tenant is not None:
-            h['Agit8or-Tenant'] = tenant
-        return self.network.request(method, url, h, body)
+        nonce_ok = conn.negotiated.get(ext.EXT_DPOP_NONCE) == 1
+        for attempt in (0, 1):
+            h = {'Authorization': f'DPoP {token}',
+                 'DPoP': tokens.build_dpop_proof(key, method, url, now=self.now(), access_token=token,
+                                                 nonce=(conn.api_nonce if nonce_ok else None) or None)}
+            if tenant is not None:
+                h['Agit8or-Tenant'] = tenant
+            r = self.network.request(method, url, h, body)
+            if nonce_ok and r.header(ext.NONCE_HEADER):
+                conn.api_nonce = r.header(ext.NONCE_HEADER)
+            if not (nonce_ok and attempt == 0 and r.status == 401 and 'use_dpop_nonce' in r.header('WWW-Authenticate')):
+                return r
+        return r
 
     def send_event(self, conn_id: str, event_type: str, tenant: str, data: dict, event_id=None,
                    origin=None) -> Response:

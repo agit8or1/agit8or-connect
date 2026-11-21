@@ -61,6 +61,20 @@
           "pattern": "^[A-Za-z0-9_-]+$"
         }
       }
+    },
+    "act": {
+      "description": "actor/1 only (PROTOCOL.md §18.2): the person the call is made for.",
+      "type": "object",
+      "required": [
+        "sub"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "sub": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+        }
+      }
     }
   }
 }

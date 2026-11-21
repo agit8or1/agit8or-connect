@@ -22,6 +22,10 @@
         },
         "correlation_id": {
           "type": "string"
+        },
+        "approval_id": {
+          "type": "string",
+          "description": "action-approval/1: id of the pending per-action approval (with code action_approval_required)"
         }
       }
     }
