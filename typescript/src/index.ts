@@ -223,7 +223,10 @@ export class MemoryReplayStore implements ReplayStore {
   seen = new Map<string, number>();
   clock: () => number;
   constructor(clock: () => number = () => Math.floor(Date.now() / 1000)) { this.clock = clock; }
+  last = 0;
   add(namespace: string, key: string, expiresAt: number): boolean {
+    const now = this.clock();
+    if (now - this.last > 60) { for (const [kk, v] of this.seen) if (v <= now) this.seen.delete(kk); this.last = now; }
     const k = `${namespace}\u0000${key}`;
     const prev = this.seen.get(k);
     if (prev !== undefined && prev > this.clock()) return false;
@@ -774,7 +777,9 @@ function addrOf(s: string): Net | null {
 }
 
 export function sourceInEgress(source: string, entries: EgressEntry[]): boolean {
-  const a = addrOf(source);
+  let a = addrOf(source);
+  // dual-stack servers report ::ffff:a.b.c.d; compare as IPv4 (audit F-18)
+  if (a && a.v === 6 && (a.addr >> 32n) === 0xffffn) a = { v: 4, addr: a.addr & 0xffffffffn, prefix: 32 };
   return !!a && entries.some((e) => { const n = netOf(e.net); return n.v === a.v && overlaps(n, a) && n.prefix <= a.prefix; });
 }
 
@@ -1190,3 +1195,18 @@ export function buildProbeResponse(o: { observedSource: string; serverTime: numb
   if (o.nonce) out.nonce = o.nonce;
   return validateProbeResponse(out, o.nonce);
 }
+
+// --- internals shared with the hardening modules (not part of the public API) ------------------------
+
+/** @internal IP parsing/formatting primitives for addresses.ts and transport.ts. */
+export const _ip = { parseV4, parseV6, formatV4, formatV6, netOf: (s: string) => netOf(s), overlaps, bits: (v: 4 | 6) => bits(v) };
+
+// --- hardening modules (addresses, approved destinations, guarded transport, persistent stores, shared
+// rate limits, elevated and per-action approval, key protection, server-side helpers) --------------------
+export * from './addresses.ts';
+export * from './destinations.ts';
+export * from './transport.ts';
+export * from './stores.ts';
+export * from './approvals.ts';
+export * from './keystore.ts';
+export * from './server.ts';
